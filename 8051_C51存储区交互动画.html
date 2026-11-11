@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8051 · C51 存储区五空间 | 交互动画</title>
+<style>
+:root{
+  --bg:#EFE2C4; --panel:#F8EFDC; --panel2:#FBF6E9; --ink:#3A2E1F; --muted:#7A6A52;
+  --line:#C9B795; --blue:#1D5FA8; --deep:#002E63; --teal:#2E8B8B;
+  --purple:#7A4FA3; --red:#C4342B; --magenta:#B0105A;
+  --c-data:#1D5FA8; --c-idata:#2E8B8B; --c-bdata:#7A4FA3; --c-xdata:#C4342B; --c-code:#B0105A;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Microsoft YaHei UI","Microsoft YaHei","PingFang SC",sans-serif;
+}
+.wrap{
+  width:min(96vw,1880px); margin:0 auto;
+  padding:clamp(10px,1vh,16px) clamp(14px,1.5vw,28px) clamp(8px,.9vh,14px);
+  min-height:100vh; display:flex; flex-direction:column;
+}
+header{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
+  border-bottom:2px solid var(--line);
+  padding-bottom:clamp(7px,.9vh,12px);margin-bottom:clamp(8px,1.1vh,14px)}
+header h1{font-size:clamp(20px,1.35vw,34px);margin:0;letter-spacing:.5px;color:var(--deep)}
+header .sub{font-size:clamp(12px,.78vw,19px);color:var(--muted)}
+header .tag{margin-left:auto;font-size:clamp(11px,.7vw,17px);color:var(--muted);border:1px solid var(--line);border-radius:14px;padding:4px 12px;background:var(--panel2)}
+.grid{
+  display:grid;
+  grid-template-columns:clamp(290px,17.5vw,360px) minmax(0,1fr) clamp(310px,18.5vw,390px);
+  gap:clamp(12px,1.1vw,20px);
+  align-items:start; align-content:center; flex:1 1 auto;
+}
+.col{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:clamp(10px,.8vw,15px) clamp(12px,.95vw,18px) clamp(10px,.9vw,16px);
+  min-height:clamp(460px,56vh,640px)}
+.col h2{font-size:clamp(14px,.82vw,20px);margin:0 0 9px;color:var(--deep);letter-spacing:.5px;display:flex;align-items:center;gap:8px}
+.col h2:before{content:"";width:4px;height:15px;background:var(--blue);border-radius:2px}
+.hint{font-size:clamp(12px,.7vw,17px);color:var(--muted);line-height:1.6;margin:0 0 9px}
+
+/* ---------- 左栏 ---------- */
+.zlist{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.zbtn{
+  display:flex;align-items:center;gap:10px;width:100%;text-align:left;cursor:pointer;
+  background:var(--panel2);border:1px solid var(--line);border-left:5px solid var(--zc);
+  border-radius:8px;padding:6px 10px;color:var(--ink);transition:.18s;
+}
+.zbtn:hover{transform:translateX(3px);box-shadow:0 2px 8px rgba(58,46,31,.12)}
+.zbtn.on{background:#fff;border-color:var(--zc);box-shadow:0 0 0 2px var(--zc) inset;font-weight:700}
+.zbtn b{font-family:Consolas,"Courier New",monospace;font-size:clamp(14px,.82vw,20px);color:var(--zc);min-width:52px}
+.zbtn span{flex:1;font-size:clamp(11.5px,.67vw,16px);color:var(--muted)}
+.codebox{background:#2E2A22;color:#F3E9D2;border-radius:9px;padding:10px 13px;font-family:Consolas,"Courier New",monospace;font-size:clamp(12px,.72vw,17px);line-height:1.65;min-height:64px;white-space:pre-wrap;word-break:break-all}
+.k{color:#8FD3F4}.t{color:#F0B27A}.v{color:#D6E9A8}.cm{color:#9B8F77}.lit{color:#F19BB6}
+.oprow{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+button.act{
+  cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--ink);
+  border-radius:8px;padding:clamp(7px,.85vh,11px) 6px;font-size:clamp(12px,.7vw,17px);font-family:inherit;transition:.15s;
+}
+button.act:hover{background:#fff;border-color:var(--blue);color:var(--deep)}
+button.act.primary{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700}
+button.act.primary:hover{background:var(--deep)}
+button.act:disabled{opacity:.42;cursor:not-allowed;transform:none}
+button.act.wide{grid-column:1/-1}
+.modrow{margin-top:10px;border-top:1px dashed var(--line);padding-top:9px;font-size:clamp(12px,.7vw,17px);color:var(--muted)}
+.modrow select{font-family:inherit;font-size:clamp(12px,.7vw,17px);padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--ink);margin-left:6px}
+.defaultinfo{margin-top:6px;font-size:clamp(12px,.7vw,17px);line-height:1.6;color:var(--ink);background:var(--panel2);border-radius:6px;padding:8px 10px}
+
+/* ---------- 中栏 ---------- */
+.stage-col{padding:14px 12px 12px}
+.stage-title{font-size:clamp(13px,.78vw,19px);color:var(--deep);font-weight:700;margin:0 0 5px 6px;display:flex;justify-content:space-between}
+.stage-title em{font-style:normal;font-size:clamp(11.5px,.68vw,16px);color:var(--muted);font-weight:400}
+svg#scene{width:100%;height:auto;display:block;background:var(--panel2);border:1px solid var(--line);border-radius:9px}
+svg text{font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif;fill:var(--ink)}
+.mono{font-family:Consolas,"Courier New",monospace}
+.bus{fill:none;stroke:#B7A480;stroke-width:2.2;stroke-linejoin:round}
+.bus.hot{stroke:var(--blue);stroke-width:3.4;filter:drop-shadow(0 0 4px rgba(29,95,168,.55))}
+.track{fill:none;stroke:none}
+.zone{cursor:pointer}
+.zone rect.zr{transition:.2s}
+.zone:hover rect.zr{filter:brightness(.97)}
+.zone.on rect.zr{stroke-width:3.2;filter:drop-shadow(0 0 7px rgba(58,46,31,.22))}
+.zone.dim{opacity:.52}
+.zt{font-size:14px;font-weight:700}
+.zs{font-size:11.5px;fill:var(--muted)}
+.badge{font-size:10.5px;font-weight:700;fill:#fff}
+.pulse{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.42}}
+.status{
+  margin-top:8px;background:var(--panel2);border:1px solid var(--line);border-left:5px solid var(--blue);
+  border-radius:8px;padding:8px 13px;font-size:clamp(12.5px,.72vw,17px);line-height:1.55;min-height:54px;
+}
+.status b{color:var(--deep)}
+.status.err{border-left-color:var(--red);color:#8E2A22}
+.status.ok{border-left-color:var(--teal)}
+.legend{display:flex;flex-wrap:wrap;gap:3px 18px;margin-top:7px;font-size:clamp(11.5px,.67vw,16px);color:var(--muted);line-height:1.6}
+.legend span{display:flex;align-items:flex-start;gap:6px;flex:1 1 45%}
+.legend span.wide{flex:1 1 100%}
+.legend i{width:9px;height:9px;border-radius:3px;flex:none;margin-top:4px}
+.legend b{color:var(--ink);white-space:nowrap}
+
+/* ---------- 右栏 ---------- */
+.kv{display:grid;grid-template-columns:clamp(76px,5vw,96px) 1fr;gap:5px 8px;font-size:clamp(12px,.72vw,17px);margin-bottom:10px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;font-weight:600;word-break:break-all}
+.bars{margin-top:6px}
+.bar{display:flex;align-items:center;gap:8px;font-size:clamp(11.5px,.67vw,16px);margin-bottom:6px}
+.bar .nm{width:52px;font-family:Consolas,monospace;color:var(--muted)}
+.bar .tr{flex:1;height:15px;background:#E4D6BA;border-radius:4px;overflow:hidden}
+.bar .fl{height:100%;border-radius:4px;transition:width .5s}
+.bar .cy{width:60px;text-align:right;color:var(--muted)}
+.note{font-size:clamp(11.5px,.67vw,16px);color:var(--muted);line-height:1.55;margin:6px 0 0}
+details{margin-top:10px;border-top:1px dashed var(--line);padding-top:8px}
+summary{cursor:pointer;font-size:clamp(12px,.72vw,17px);font-weight:700;color:var(--deep);outline:none}
+details ol{margin:7px 0 0;padding-left:19px;font-size:clamp(11.8px,.68vw,16px);line-height:1.55;color:var(--ink)}
+details li{margin-bottom:3px}
+.quiz{background:#FFF8E8;border:1px solid #E0C98F;border-radius:9px;padding:11px 12px;font-size:clamp(12px,.72vw,17px);line-height:1.6;margin-bottom:9px}
+.quiz .qcode{font-family:Consolas,monospace;font-size:12.5px;background:#2E2A22;color:#F3E9D2;padding:7px 9px;border-radius:6px;margin:7px 0;white-space:pre-wrap}
+.quiz .res{font-weight:700;margin-top:6px}
+footer{margin-top:8px;border-top:1px solid var(--line);padding-top:6px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;font-size:clamp(11px,.65vw,15px);color:var(--muted);flex:none}
+
+/* ---------- 位寻址弹层 ---------- */
+#bits{position:fixed;inset:0;background:rgba(46,42,34,.55);display:none;align-items:center;justify-content:center;z-index:20;padding:16px}
+#bits.show{display:flex}
+.bitscard{background:var(--panel);border:2px solid var(--purple);border-radius:14px;padding:20px 24px;width:min(600px,94vw);max-height:88vh;overflow:auto;box-shadow:0 14px 42px rgba(0,0,0,.3)}
+.bitscard h3{margin:0 0 6px;color:var(--deep);font-size:18px}
+.bitscard p{margin:0 0 12px;font-size:13px;color:var(--muted);line-height:1.6}
+.bitgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:5px;margin-bottom:12px}
+.bit{
+  height:26px;border:1px solid var(--line);border-radius:4px;background:var(--panel2);
+  font-family:Consolas,monospace;font-size:10.5px;color:var(--muted);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:.12s;
+}
+.bit.one{background:var(--purple);border-color:var(--purple);color:#fff;font-weight:700}
+.bit:hover{transform:scale(1.08)}
+.bitscode{background:#2E2A22;color:#D6E9A8;border-radius:7px;padding:9px 11px;font-family:Consolas,monospace;font-size:12.5px;margin-bottom:12px}
+.closebits{float:right;cursor:pointer;background:var(--purple);color:#fff;border:0;border-radius:7px;padding:7px 15px;font-size:13px;font-family:inherit}
+
+/* ================= 自适应：1920×1080 为设计锚点 ================= */
+/* 超宽 / 4K 投影：放宽容器，字号随视口继续增长（clamp 上限已留出余量） */
+@media (min-width:2100px){
+  .wrap{width:min(92vw,2500px)}
+}
+/* 中等桌面 / 笔记本：收紧左右栏，保证中栏图形仍有宽度 */
+@media (max-width:1500px){
+  .grid{grid-template-columns:clamp(250px,20vw,310px) minmax(0,1fr) clamp(265px,21vw,325px)}
+  .legend span{flex:1 1 100%}
+}
+/* ≤1400（笔记本 / 平板横屏）：三栏挤不下，改为存储器地图独占首行放大，控制栏与属性栏并排次之 */
+@media (max-width:1400px){
+  .grid{grid-template-columns:1fr 1fr;align-content:start}
+  .stage-col{grid-column:1/-1;order:-1}
+  .grid > .col:last-child{grid-column:auto;min-height:0}
+  .grid > .col:last-child .kv{grid-template-columns:110px 1fr}
+  .legend span{flex:1 1 45%}
+  .col{min-height:0}
+}
+/* 竖屏 / 手机：单栏堆叠，存储器地图提到最前 */
+@media (max-width:820px){
+  .wrap{width:94vw;min-height:0}
+  .grid{grid-template-columns:1fr;align-content:start}
+  .grid > .col:last-child{grid-column:auto}
+  .stage-col{order:-1}
+  header .tag{display:none}
+  header .sub{display:none}
+  .legend span{flex:1 1 100%}
+  footer span:last-child{display:none}
+}
+@media (max-width:560px){
+  .bitscard{padding:14px}
+  .bitgrid{gap:3px}
+  .bit{height:22px;font-size:9px}
+  .oprow{grid-template-columns:1fr 1fr}
+}
+/* 低高度窗口（如 1366×768 投影）：去掉最小高度与垂直居中，避免首屏被撑破 */
+@media (max-height:820px){
+  .wrap{min-height:0}
+  .grid{align-content:start}
+  .col{min-height:0}
+  footer{margin-top:6px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>C51 存储区五空间 · 代码如何落到硬件上</h1>
+    <span class="sub">8051 单片机原理与应用 · 交互动画 01</span>
+    <span class="tag">Keil C51 ｜ 哈佛结构 ｜ 单文件离线可用</span>
+  </header>
+
+  <main class="grid">
+    <!-- ================= 左栏 ================= -->
+    <section class="col">
+      <h2>① 选一个存储类型</h2>
+      <p class="hint">同一行 <span class="mono">unsigned char</span> 声明，只因多了一个关键字，变量就被编译器安置到不同的物理空间。</p>
+      <div class="zlist" id="zlist"></div>
+
+      <h2>② 看 C 代码</h2>
+      <div class="codebox" id="codebox"></div>
+
+      <h2 style="margin-top:15px">③ 执行一个动作</h2>
+      <div class="oprow">
+        <button class="act primary" id="bRead">读回 CPU</button>
+        <button class="act" id="bWrite">写入 0x5A</button>
+        <button class="act" id="bStep">单步</button>
+        <button class="act" id="bAuto">自动巡览</button>
+        <button class="act" id="bBits">展开 128 位</button>
+        <button class="act" id="bQuiz">先猜后播</button>
+        <button class="act wide" id="bReset">复 位</button>
+      </div>
+
+      <div class="modrow">
+        存储模式
+        <select id="mode">
+          <option value="small">small（默认）</option>
+          <option value="compact">compact</option>
+          <option value="large">large</option>
+        </select>
+        <div class="defaultinfo" id="modeInfo"></div>
+      </div>
+    </section>
+
+    <!-- ================= 中栏 ================= -->
+    <section class="col stage-col">
+      <div class="stage-title">
+        <span>存储器地图与总线</span>
+        <em>点击任一区域也可切换 · 包裹运动表示一次访问</em>
+      </div>
+      <svg id="scene" viewBox="0 104 720 366" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#B7A480"/>
+          </marker>
+          <filter id="glow"><feGaussianBlur stdDeviation="3.5" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+
+        <!-- 总线（可见） -->
+        <path id="bus_int" class="bus" d="M144 285 L190 285"/>
+        <path id="bus_ext" class="bus" d="M144 255 L470 255 L470 195 L498 195" marker-end="url(#arw)"/>
+        <path id="bus_prog" class="bus" d="M144 315 L470 315 L470 375 L498 375" marker-end="url(#arw)"/>
+        <!-- 总线说明移至 SVG 下方图例，避免与区内文字重叠 -->
+
+        <!-- 运动轨迹（不可见） -->
+        <path id="p_data"  class="track" d="M144 285 L190 285 L325 205"/>
+        <path id="p_bdata" class="track" d="M144 285 L190 285 L325 249"/>
+        <path id="p_idata" class="track" d="M144 285 L190 285 L325 325"/>
+        <path id="p_xdata" class="track" d="M144 255 L470 255 L470 195 L598 195"/>
+        <path id="p_code"  class="track" d="M144 315 L470 315 L470 375 L598 375"/>
+
+        <!-- CPU -->
+        <g>
+          <rect x="24" y="230" width="120" height="110" rx="10" fill="#002E63" stroke="#001C3E" stroke-width="2"/>
+          <text x="84" y="272" text-anchor="middle" font-size="19" font-weight="700" fill="#FFFFFF">CPU</text>
+          <text x="84" y="296" text-anchor="middle" font-size="12" fill="#C9DDF2">累加器 A</text>
+          <text x="84" y="316" text-anchor="middle" font-size="12" fill="#C9DDF2">寄存器 / DPTR</text>
+        </g>
+
+        <!-- 片内 RAM 容器 -->
+        <g>
+          <rect x="190" y="120" width="270" height="330" rx="10" fill="none" stroke="#8C7A5C" stroke-width="2" stroke-dasharray="6 4"/>
+          <text x="200" y="143" font-size="11.5" font-weight="700" fill="#8C7A5C">片内 RAM · 同一块物理存储器（8052: 256 B）</text>
+
+          <!-- data -->
+          <g class="zone" id="z_data" data-z="data">
+            <rect class="zr" x="206" y="157" width="238" height="112" rx="8" fill="#DCE9F7" stroke="#1D5FA8" stroke-width="2"/>
+            <text x="218" y="179" class="zt" fill="#1D5FA8">data</text>
+            <text x="218" y="197" class="zs">00H–7FH · 128 B · 直接寻址</text>
+            <text x="218" y="214" class="mono" font-size="11.5" fill="#1D5FA8">直接寻址 · 1 周期</text>
+            <!-- bdata 内嵌 -->
+            <g class="zone" id="z_bdata" data-z="bdata">
+              <rect class="zr" x="214" y="224" width="222" height="38" rx="6" fill="#E9DFF3" stroke="#7A4FA3" stroke-width="2"/>
+              <text x="224" y="240" class="zt" font-size="12.5" fill="#7A4FA3">bdata</text>
+              <text x="224" y="256" class="zs" font-size="11">20H–2FH · 16 B · 128 个位</text>
+            </g>
+          </g>
+
+          <!-- idata 高区 -->
+          <g class="zone" id="z_idata" data-z="idata">
+            <rect class="zr" x="206" y="279" width="238" height="62" rx="8" fill="#D9EDEC" stroke="#2E8B8B" stroke-width="2"/>
+            <text x="218" y="301" class="zt" fill="#2E8B8B">idata（高 128 B）</text>
+            <text x="218" y="319" class="zs">80H–FFH · 仅间接寻址</text>
+            <text x="218" y="335" class="mono" font-size="11.5" fill="#2E8B8B">间接寻址 · 1 周期</text>
+          </g>
+
+          <rect x="206" y="351" width="238" height="82" rx="8" fill="#F0E7D2" stroke="#C9B795" stroke-width="1.5"/>
+          <text x="218" y="371" class="zs" font-size="11.5" font-weight="700" fill="#7A6A52">注意 · 地址重叠 ≠ 同一空间</text>
+          <text x="218" y="390" class="zs" font-size="11.5">80H–FFH 的 SFR 与 idata 高区</text>
+          <text x="218" y="407" class="zs" font-size="11.5">地址相同，物理独立，靠寻址方式区分</text>
+          <text x="218" y="425" class="zs" font-size="11.5">data 与 idata 低 128 B 是同一批字节</text>
+        </g>
+
+        <!-- xdata -->
+        <g class="zone" id="z_xdata" data-z="xdata">
+          <rect class="zr" x="498" y="120" width="198" height="150" rx="10" fill="#F8DFDC" stroke="#C4342B" stroke-width="2"/>
+          <text x="514" y="147" class="zt" font-size="16" fill="#C4342B">xdata</text>
+          <text x="514" y="169" class="zs" font-size="12">片外 RAM · 0000H–FFFFH</text>
+          <text x="514" y="188" class="zs" font-size="12">64 KB · 可读写</text>
+          <text x="514" y="211" class="mono" font-size="12" fill="#C4342B">外部总线 · 2 周期</text>
+          <text x="514" y="234" class="zs" font-size="11.5">经 P0（地址/数据复用）+ P2</text>
+          <text x="514" y="253" class="zs" font-size="11.5">需外部总线，典型 2 机器周期</text>
+        </g>
+
+        <!-- code -->
+        <g class="zone" id="z_code" data-z="code">
+          <rect class="zr" x="498" y="300" width="198" height="150" rx="10" fill="#F6DEEA" stroke="#B0105A" stroke-width="2"/>
+          <text x="514" y="327" class="zt" font-size="16" fill="#B0105A">code</text>
+          <text x="514" y="349" class="zs" font-size="12">程序 ROM/Flash · 0000H–FFFFH</text>
+          <text x="514" y="368" class="zs" font-size="12">64 KB · 运行时只读</text>
+          <text x="514" y="391" class="mono" font-size="12" fill="#B0105A">取表总线 · 2 周期</text>
+          <text x="514" y="414" class="zs" font-size="11.5">常数表 / 段码表放这里</text>
+          <g transform="translate(654,300)">
+            <rect x="0" y="12" width="26" height="20" rx="4" fill="#B0105A"/>
+            <path d="M5 12 V7 a8 8 0 0 1 16 0 V12" fill="none" stroke="#B0105A" stroke-width="3"/>
+            <text x="13" y="26" text-anchor="middle" font-size="11" fill="#fff" font-weight="700">R</text>
+          </g>
+        </g>
+
+        <!-- 默认落点徽标 -->
+        <g id="defBadge" style="display:none">
+          <rect id="defRect" x="0" y="0" width="66" height="21" rx="10" fill="#002E63"/>
+          <text id="defText" x="33" y="14.5" text-anchor="middle" class="badge">默认落点</text>
+        </g>
+
+        <!-- 数据包裹 -->
+        <g id="packet" transform="translate(120,269)" filter="url(#glow)">
+          <rect x="0" y="0" width="48" height="32" rx="7" fill="#FFFFFF" stroke="#002E63" stroke-width="2"/>
+          <text x="24" y="21" text-anchor="middle" class="mono" font-size="13" font-weight="700" fill="#002E63">0x5A</text>
+        </g>
+
+        <!-- 类比与免责说明见下方 HTML 图例 -->
+      </svg>
+      <div class="status" id="status"><b>准备就绪。</b> 选择左侧任一存储类型，再点「读回 CPU」或「写入 0x5A」观察数据包裹沿哪条总线走。</div>
+      <div class="legend">
+        <span><i style="background:#1D5FA8"></i><b>内部总线</b> → data / idata / bdata，同一块片内 RAM</span>
+        <span><i style="background:#C4342B"></i><b>外部数据总线</b> → xdata，经 P0/P2，2 周期</span>
+        <span><i style="background:#B0105A"></i><b>程序取表总线 · PSEN</b> → code，运行时只读</span>
+        <span class="wide"><i style="background:#8C7A5C"></i>路径长短只表示<b>总线类型</b>，不代表时间比例；耗时看右侧机器周期。类比：手边抽屉 / 同屋柜子 / 带开关的格子 / 厂区外大仓库 / 只读档案柜。</span>
+      </div>
+    </section>
+
+    <!-- ================= 右栏 ================= -->
+    <section class="col">
+      <div id="quizBox" class="quiz" style="display:none">
+        <b>先猜后播 · 第 <span id="qno">1</span> 题</b>
+        <div class="qcode" id="qcode"></div>
+        <div id="qtext"></div>
+        <div style="margin-top:8px">我的判断：左侧点一个存储类型 → 再按「验证」</div>
+        <button class="act primary" id="bVerify" style="width:100%;margin-top:9px">验 证</button>
+        <div class="res" id="qres"></div>
+      </div>
+
+      <h2>当前空间的属性</h2>
+      <dl class="kv" id="kv"></dl>
+
+      <h2>访问代价对比</h2>
+      <div class="bars" id="bars"></div>
+      <p class="note">按传统 12T 内核的典型机器周期示意。<b>data / idata / bdata 同为 1 周期</b>，差别在寻址方式与指令字节数；<b>xdata / code 为 2 周期</b>，因需走外部总线。1T 内核（如 STC12/15）数值不同，但相对关系不变。</p>
+
+      <details open>
+        <summary>比喻的边界（务必讲给学生）</summary>
+        <ol>
+          <li><b>不是五个仓库。</b>data、idata、bdata 指向同一块片内 RAM 的不同部分/不同寻址方式；bdata 只是 20H–2FH 这 16 个字节的「按位看」视图。</li>
+          <li><b>「远」不是距离，是指令与总线。</b>xdata 慢是因为外部访问要走 P0/P2 总线、多耗一个机器周期，不是数据跑得更远。</li>
+          <li><b>code 并非物理上永不可写。</b>带 IAP 的 8051 可用特殊流程擦写 Flash，但对普通 C 变量，运行时一律只读。</li>
+          <li><b>C51 课不要求记指令。</b>底层由编译器按存储区生成不同总线周期，只需记住「存储区不同 → 通道不同 → 机器周期不同」这条因果链。</li>
+          <li><b>真实工程由编译器决定默认落点。</b>未写存储类型时按 small / compact / large 模式自动分配；动画里的「拖到哪放哪」是教学简化。</li>
+        </ol>
+      </details>
+
+      <details>
+        <summary>这张图对应哪些考点</summary>
+        <ol>
+          <li>哈佛结构：程序空间与数据空间独立编址，故程序与数据各有独立访问通道。</li>
+          <li><span class="mono">code</span> 段码表、正弦表为什么只读；误写会编译报错。</li>
+          <li>通用指针 3 字节 vs 指定存储区指针 1–2 字节，速度与代码体积的来源。</li>
+          <li><span class="mono">bit / sbit / bdata</span> 与 128 个位地址上限。</li>
+        </ol>
+      </details>
+    </section>
+  </main>
+
+  <footer>
+    <span>8051 单片机原理与应用 · C51 存储区交互演示 · 单 HTML 文件，无外部依赖，可离线投影或发给学生</span>
+    <span>视觉规范：米黄 #EFE2C4 · 深蓝 #002E63</span>
+  </footer>
+</div>
+
+<!-- 位寻址弹层 -->
+<div id="bits">
+  <div class="bitscard">
+    <button class="closebits" id="bCloseBits">关闭</button>
+    <h3>bdata 位寻址区 · 20H–2FH</h3>
+    <p>16 字节 × 8 位 = 128 个可独立寻址的位（位地址 00H–7FH）。点任意格子执行置位 / 清零，观察 <span class="mono">sbit</span> 与位地址的对应关系。</p>
+    <div class="bitgrid" id="bitgrid"></div>
+    <div class="bitscode" id="bitscode">unsigned char bdata flags;&nbsp; sbit ready = flags^0;  // 位地址 00H</div>
+    <p style="margin:0;font-size:12px">边界：位寻址是「同一批字节的另一种看法」，不是另开了一块存储区；<span class="mono">bit</span> 变量总数超过 128 个会编译失败。</p>
+  </div>
+</div>
+
+<script>
+"use strict";
+var C = {data:'#1D5FA8', idata:'#2E8B8B', bdata:'#7A4FA3', xdata:'#C4342B', code:'#B0105A'};
+var Z = {
+  data:  {label:'data',  short:'最快 · 片内低 128 B', color:C.data,
+    range:'00H–7FH', size:'128 B', addr:'直接寻址（1 字节地址）',
+    instr:'片内 RAM 直接寻址', cyc:1, ptr:'1 B（指定区指针）', write:true,
+    decl:'<span class="k">unsigned char</span> <span class="t">data</span> <span class="v">cnt</span>;',
+    use:'频繁访问的小变量、循环计数器、标志位',
+    note:'手边抽屉：伸手就到。00H–1FH 还是 4 组工作寄存器，注意别被占用。',
+    bus:'bus_int', path:'p_data',
+    read:'从片内 RAM 直接地址取数，1 个机器周期。',
+    writ:'写入片内 RAM 直接地址，1 个机器周期。'},
+  idata: {label:'idata', short:'同屋柜子 · 含高 128 B', color:C.idata,
+    range:'00H–FFH', size:'256 B（8052）', addr:'间接寻址（片内高 128 B）',
+    instr:'片内 RAM 间接寻址', cyc:1, ptr:'1 B（指定区指针）', write:true,
+    decl:'<span class="k">unsigned char</span> <span class="t">idata</span> <span class="v">buf</span>[40];',
+    use:'较大的片内缓冲区、堆栈',
+    note:'与 data 的低 128 B 是同一批字节；高 128 B 只能间接访问，且与 SFR 地址重叠但物理独立。',
+    bus:'bus_int', path:'p_idata',
+    read:'先准备地址再间接取数；同为 1 机器周期，但常多一步准备动作。',
+    writ:'经 Ri 间接写入片内 RAM 高区。'},
+  bdata:{label:'bdata', short:'可按位单独操作', color:C.bdata,
+    range:'20H–2FH', size:'16 B = 128 bit', addr:'字节 + 位双重寻址',
+    instr:'按位读 / 写（bit / sbit）', cyc:1, ptr:'1 B（指定区指针）', write:true,
+    decl:'<span class="k">unsigned char</span> <span class="t">bdata</span> <span class="v">flags</span>;  <span class="k">sbit</span> <span class="v">ready</span> = <span class="v">flags</span>^0;',
+    use:'软件标志集合，可整字节读写也可逐位操作',
+    note:'抽屉里带独立小开关的格子：同一批字节，换个看法就能一位一位拨。',
+    bus:'bus_int', path:'p_bdata',
+    read:'整字节读回，或只读取其中某一位。',
+    writ:'按位赋值只改动一位，其余 7 位保持不变。'},
+  xdata:{label:'xdata', short:'片外大仓库 · 64 KB', color:C.xdata,
+    range:'0000H–FFFFH', size:'64 KB', addr:'16 位地址 · 外部总线',
+    instr:'片外数据总线（P0 + P2）', cyc:2, ptr:'2 B（指定区指针）', write:true,
+    decl:'<span class="k">unsigned char</span> <span class="t">xdata</span> <span class="v">frame</span>[256];',
+    use:'大数组、采样缓冲、外部扩展 RAM / 外设',
+    note:'P0 作地址/数据复用、P2 送高 8 位地址，需锁存；多耗 1 个机器周期。',
+    bus:'bus_ext', path:'p_xdata',
+    read:'经外部数据总线取数，典型 2 机器周期。',
+    writ:'经外部数据总线写入片外 RAM，典型 2 机器周期。'},
+  code: {label:'code',  short:'只读档案柜 · 64 KB', color:C.code,
+    range:'0000H–FFFFH', size:'64 KB', addr:'查表方式 · 程序空间',
+    instr:'程序取表总线（PSEN）', cyc:2, ptr:'2 B（指定区指针）', write:false,
+    decl:'<span class="k">unsigned char</span> <span class="t">code</span> <span class="v">seg7</span>[] = {0x3F, 0x06, 0x5B};',
+    use:'数码管段码表、正弦表、字库等运行时不变的常数',
+    note:'与数据空间独立编址（哈佛结构）；写操作在编译阶段就会被拒绝。',
+    bus:'bus_prog', path:'p_code',
+    read:'经程序取表总线读常数，典型 2 机器周期。',
+    writ:'—— 只读，C 代码里对 code 对象赋值会编译报错。'}
+};
+var ORDER = ['data','idata','bdata','xdata','code'];
+var MODES = {
+  small:  {z:'data',  txt:'未写存储类型的变量默认放 <b>data</b>（片内低 128 B）。速度最快，但 128 B 很快会被局部变量与堆栈吃掉。'},
+  compact:{z:'xdata', txt:'默认放 <b>pdata</b>（xdata 的一页 256 B，按页间接访问）。图中以 xdata 区示意；compact 用得较少。'},
+  large:  {z:'xdata', txt:'默认放 <b>xdata</b>（片外 64 KB）。空间宽裕，代价是每次访问多耗机器周期。'}
+};
+var QUIZ = [
+  {code:'unsigned char code seg7[10] = {0x3F, 0x06, 0x5B, ...};',
+   text:'这张数码管段码表落在哪块空间？运行时能不能改其中某一项？', a:'code'},
+  {code:'unsigned char xdata frame[256];',
+   text:'这 256 字节放在哪？访问它比访问普通片内变量慢在哪里？', a:'xdata'},
+  {code:'unsigned char bdata flags;  sbit ready = flags^0;',
+   text:'flags 落在哪？ready 占的是一整个字节吗？', a:'bdata'}
+];
+
+var cur='data', running=false, timers=[], qidx=0, quizOn=false, gen=0;
+var $ = function(id){ return document.getElementById(id); };
+
+/* ---------- 初始化 ---------- */
+function buildList(){
+  var h='';
+  ORDER.forEach(function(k){
+    h += '<button class="zbtn'+(k===cur?' on':'')+'" data-k="'+k+'" style="--zc:'+C[k]+'">'+
+         '<b>'+Z[k].label+'</b><span>'+Z[k].short+'</span></button>';
+  });
+  $('zlist').innerHTML=h;
+  Array.prototype.forEach.call(document.querySelectorAll('.zbtn'), function(b){
+    b.onclick=function(){ select(b.getAttribute('data-k')); };
+  });
+}
+function buildBars(){
+  var h='';
+  ORDER.forEach(function(k){
+    h += '<div class="bar" id="bar_'+k+'"><span class="nm" style="color:'+C[k]+'">'+Z[k].label+'</span>'+
+         '<span class="tr"><span class="fl" id="fl_'+k+'" style="width:'+(Z[k].cyc*46)+'%;background:'+C[k]+'"></span></span>'+
+         '<span class="cy">'+Z[k].cyc+' 周期</span></div>';
+  });
+  $('bars').innerHTML=h;
+}
+function buildBits(){
+  var h='';
+  for(var i=0;i<128;i++){
+    var ba='0x'+(i<16?'0':'')+i.toString(16).toUpperCase();
+    h += '<div class="bit" data-i="'+i+'" title="位地址 '+ba+'">'+ba+'</div>';
+  }
+  $('bitgrid').innerHTML=h;
+  Array.prototype.forEach.call(document.querySelectorAll('.bit'),function(d){
+    d.onclick=function(){
+      d.classList.toggle('one');
+      var i=parseInt(d.getAttribute('data-i'),10);
+      var byte=0x20+Math.floor(i/8), bit=i%8;
+      var nm=['ready','busy','done','err','tx','rx','key','ov'][bit];
+      $('bitscode').innerHTML='unsigned char bdata flags;  sbit '+nm+' = flags^'+bit+
+        ';  // 字节 0x'+byte.toString(16).toUpperCase()+' 的第 '+bit+' 位 → 位地址 0x'+
+        (i<16?'0':'')+i.toString(16).toUpperCase()+' → '+(d.classList.contains('one')?'置 1':'清 0');
+    };
+  });
+}
+
+/* ---------- 选择 / 属性 ---------- */
+function select(k, force){
+  if(running && !force) return;
+  cur=k; var z=Z[k];
+  Array.prototype.forEach.call(document.querySelectorAll('.zbtn'),function(b){
+    b.classList.toggle('on', b.getAttribute('data-k')===k);
+  });
+  ORDER.forEach(function(x){
+    var el=$('z_'+x); if(!el) return;
+    el.classList.toggle('on', x===k);
+  });
+  // bdata 内嵌于 data，两者同亮
+  if(k==='bdata') $('z_data').classList.add('on');
+  if(k==='data')  $('z_bdata').classList.remove('on');
+  $('codebox').innerHTML=z.decl;
+  $('kv').innerHTML=
+    '<dt>地址范围</dt><dd>'+z.range+'</dd>'+
+    '<dt>容量</dt><dd>'+z.size+'</dd>'+
+    '<dt>寻址方式</dt><dd>'+z.addr+'</dd>'+
+    '<dt>底层访问</dt><dd class="mono" style="color:'+z.color+'">'+z.instr+'</dd>'+
+    '<dt>机器周期</dt><dd>'+z.cyc+' （12T 内核示意）</dd>'+
+    '<dt>指针长度</dt><dd>'+z.ptr+'</dd>'+
+    '<dt>运行时可写</dt><dd style="color:'+(z.write?'#2E8B8B':'#C4342B')+'">'+(z.write?'是':'否 · 只读')+'</dd>'+
+    '<dt>典型用途</dt><dd>'+z.use+'</dd>'+
+    '<dt>要点</dt><dd style="font-weight:400;font-size:12.3px;line-height:1.55">'+z.note+'</dd>';
+  ORDER.forEach(function(x){
+    var b=$('bar_'+x); if(b) b.style.opacity = (x===k)?'1':'.7';
+    var fl=$('fl_'+x); if(fl) fl.style.width=(Z[x].cyc*46)+'%';
+  });
+  $('bBits').disabled = (k!=='bdata');
+  resetPacket();
+  setStatus('<b>已选 '+z.label+'。</b> '+z.note);
+  updateMode();
+}
+function resetPacket(){ $('packet').setAttribute('transform','translate(120,269)'); }
+function setStatus(html, cls){
+  var s=$('status'); s.className='status'+(cls?' '+cls:''); s.innerHTML=html;
+}
+function clearTimers(){ timers.forEach(clearTimeout); timers=[]; }
+function later(fn,ms){ var t=setTimeout(fn,ms); timers.push(t); return t; }
+
+/* ---------- 动画 ---------- */
+function move(pathId, dur, rev, done){
+  var p=$(pathId), len=p.getTotalLength(), t0=performance.now(), pk=$('packet'), my=++gen;
+  function frame(now){
+    if(my!==gen) return;
+    var t=Math.min(1,(now-t0)/dur);
+    var e=t<.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;   // easeInOutQuad
+    var f=rev ? (1-e) : e;
+    var pt=p.getPointAtLength(len*Math.min(1,Math.max(0,f)));
+    pk.setAttribute('transform','translate('+(pt.x-24)+','+(pt.y-16)+')');
+    if(t<1) requestAnimationFrame(frame); else if(done) done();
+  }
+  requestAnimationFrame(frame);
+}
+function hotBus(on){
+  ['bus_int','bus_ext','bus_prog'].forEach(function(id){ $(id).classList.remove('hot'); });
+  if(on) $(on).classList.add('hot');
+}
+function play(op){
+  if(running) return;
+  var z=Z[cur], dur=z.cyc*900;
+  running=true; setButtons(true);
+  hotBus(z.bus);
+  $('z_'+cur).classList.add('pulse');
+
+  if(op==='write' && !z.write){
+    setStatus('<b>写入被拒绝。</b> 对 <span class="mono">code</span> 对象赋值会在编译阶段被判为「不可修改的左值」—— 常数表固化进程序空间，运行时没有写通道。', 'err');
+    move(z.path, dur*0.8, false, function(){
+      later(function(){
+        move(z.path, dur*0.5, true, function(){
+          hotBus(null); $('z_'+cur).classList.remove('pulse');
+          running=false; setButtons(false); resetPacket();
+        });
+      }, 320);
+    });
+    return;
+  }
+  var isRead = (op==='read');
+  setStatus('<b>'+(isRead?'读取':'写入')+' '+z.label+'</b> · <span class="mono">'+z.instr+'</span> · '+z.cyc+' 机器周期 —— 数据包裹正在'+(isRead?'往返':'前往')+'…');
+  var go = function(){
+    move(z.path, isRead?dur/2:dur, false, function(){
+      if(isRead){
+        later(function(){
+          move(z.path, dur/2, true, function(){
+            finish('<b>读回完成。</b> '+z.read+' 数据包裹已把 <span class="mono">0x5A</span> 送回累加器 A。','ok');
+          });
+        }, 260);
+      } else {
+        finish('<b>写入完成。</b> '+z.writ+' <span class="mono">0x5A</span> 已存进 '+z.range+'。','ok');
+      }
+    });
+  };
+  go();
+  function finish(msg,cls){
+    hotBus(null); $('z_'+cur).classList.remove('pulse');
+    running=false; setButtons(false); setStatus(msg,cls);
+  }
+}
+function setButtons(dis){
+  ['bRead','bWrite','bStep','bAuto','bQuiz'].forEach(function(id){ $(id).disabled=dis; });
+  $('bBits').disabled = dis || cur!=='bdata';
+}
+function reset(){
+  clearTimers(); gen++; running=false; setButtons(false);
+  hotBus(null);
+  ORDER.forEach(function(k){ $('z_'+k).classList.remove('pulse'); });
+  resetPacket(); quizOn=false; $('quizBox').style.display='none'; $('bQuiz').textContent='先猜后播';
+  setStatus('<b>已复位。</b> 选择存储类型，再执行读 / 写操作。');
+}
+function autoTour(){
+  if(running) return;
+  clearTimers(); running=true; setButtons(true);
+  var i=0;
+  function step(){
+    if(i>=ORDER.length){
+      running=false; setButtons(false); hotBus(null);
+      setStatus('<b>巡览结束。</b> 五个空间走过一遍：前三者同属片内 RAM，后两者分别走外部总线与程序总线。','ok');
+      return;
+    }
+    cur=ORDER[i++]; select(cur, true);
+    setStatus('<b>自动巡览 '+(i)+'/5 · '+Z[cur].label+'</b> —— '+Z[cur].note);
+    hotBus(Z[cur].bus); $('z_'+cur).classList.add('pulse');
+    var dur=Z[cur].cyc*650;
+    move(Z[cur].path, dur/2, false, function(){
+      later(function(){
+        move(Z[cur].path, dur/2, true, function(){
+          $('z_'+cur).classList.remove('pulse');
+          later(step, 260);
+        });
+      }, 160);
+    });
+  }
+  step();
+}
+
+/* ---------- 存储模式 ---------- */
+function updateMode(){
+  var m=$('mode').value, d=MODES[m];
+  $('modeInfo').innerHTML=d.txt;
+  var g=$('defBadge'), r=$('defRect'), t=$('defText');
+  var pos={data:[352,157], idata:[352,279], bdata:[352,224], xdata:[600,120], code:[600,300]}[d.z];
+  g.setAttribute('transform','translate('+pos[0]+','+pos[1]+')');
+  g.style.display='';
+  t.textContent='默认 · '+m;
+  r.setAttribute('width','92');
+  t.setAttribute('x','46');
+}
+
+/* ---------- 预测-验证 ---------- */
+function showQuiz(){
+  reset(); quizOn=true;
+  $('quizBox').style.display='block';
+  $('bQuiz').textContent='退出预测';
+  var q=QUIZ[qidx%QUIZ.length];
+  $('qno').textContent=(qidx%QUIZ.length)+1;
+  $('qcode').textContent=q.code;
+  $('qtext').textContent=q.text;
+  $('qres').innerHTML='';
+  setStatus('<b>先猜后播。</b> 请先让学生判断，再点「验证」播放动画。');
+}
+function verify(){
+  var q=QUIZ[qidx%QUIZ.length], ok=(cur===q.a);
+  $('qres').innerHTML= ok
+    ? '<span style="color:#2E8B8B">✓ 判断正确，正在演示…</span>'
+    : '<span style="color:#C4342B">✗ 实际是 '+q.a+'，正在切到正确空间演示…</span>';
+  if(!ok) select(q.a);
+  qidx++;
+  later(function(){ play('read'); }, 420);
+}
+
+/* ---------- 事件 ---------- */
+$('bRead').onclick=function(){ play('read'); };
+$('bWrite').onclick=function(){ play('write'); };
+$('bStep').onclick=function(){ play(cur==='code'?'read':'write'); };
+$('bAuto').onclick=autoTour;
+$('bReset').onclick=reset;
+$('bBits').onclick=function(){ $('bits').classList.add('show'); };
+$('bCloseBits').onclick=function(){ $('bits').classList.remove('show'); };
+$('bits').onclick=function(e){ if(e.target===this) this.classList.remove('show'); };
+$('bQuiz').onclick=function(){ quizOn?reset():showQuiz(); };
+$('bVerify').onclick=verify;
+$('mode').onchange=updateMode;
+ORDER.forEach(function(k){
+  var el=$('z_'+k);
+  if(el) el.onclick=function(e){ e.stopPropagation(); select(k); };
+});
+// bdata 内嵌：阻止冒泡到 data
+$('z_bdata').onclick=function(e){ e.stopPropagation(); select('bdata'); };
+
+buildList(); buildBars(); buildBits(); select('data');
+</script>
+</body>
+</html>
