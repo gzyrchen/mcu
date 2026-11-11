@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8051 · C51 定时器：配置 → 计数 → 溢出 → 重装 | 交互动画</title>
+<style>
+:root{
+  --bg:#EFE2C4; --panel:#F8EFDC; --panel2:#FBF6E9; --ink:#3A2E1F; --muted:#7A6A52;
+  --line:#C9B795; --blue:#1D5FA8; --deep:#002E63; --teal:#2E8B8B;
+  --purple:#7A4FA3; --red:#C4342B; --magenta:#B0105A; --amber:#C77B18;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);
+  font-family:"Microsoft YaHei UI","Microsoft YaHei","PingFang SC",sans-serif;}
+.wrap{width:min(96vw,1880px);margin:0 auto;
+  padding:clamp(10px,1vh,16px) clamp(14px,1.5vw,28px) clamp(8px,.9vh,14px);
+  min-height:100vh;display:flex;flex-direction:column;}
+header{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
+  border-bottom:2px solid var(--line);
+  padding-bottom:clamp(7px,.9vh,12px);margin-bottom:clamp(8px,1.1vh,14px)}
+header h1{font-size:clamp(20px,1.35vw,34px);margin:0;letter-spacing:.5px;color:var(--deep)}
+header .sub{font-size:clamp(12px,.78vw,19px);color:var(--muted)}
+header .tag{margin-left:auto;font-size:clamp(11px,.7vw,17px);color:var(--muted);border:1px solid var(--line);border-radius:14px;padding:4px 12px;background:var(--panel2)}
+.grid{display:grid;
+  grid-template-columns:clamp(300px,18vw,375px) minmax(0,1fr) clamp(310px,18.5vw,395px);
+  gap:clamp(12px,1.1vw,20px);align-items:start;align-content:center;flex:1 1 auto;}
+.col{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:clamp(10px,.8vw,15px) clamp(12px,.95vw,18px) clamp(10px,.9vw,16px);
+  min-height:clamp(460px,56vh,640px)}
+.col h2{font-size:clamp(14px,.82vw,20px);margin:0 0 6px;color:var(--deep);letter-spacing:.5px;display:flex;align-items:center;gap:8px}
+.col h2:before{content:"";width:4px;height:15px;background:var(--blue);border-radius:2px}
+.col h2.tight{margin-top:7px}
+.hint{font-size:clamp(11.5px,.67vw,16px);color:var(--muted);line-height:1.55;margin:0 0 8px}
+
+/* ---------- 左栏 ---------- */
+.modes{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:9px}
+.mbtn{cursor:pointer;border:1px solid var(--line);background:var(--panel2);border-radius:7px;
+  padding:7px 2px 6px;text-align:center;font-family:inherit;transition:.15s;color:var(--ink)}
+.mbtn b{display:block;font-family:Consolas,monospace;font-size:clamp(12px,.72vw,17px);color:var(--mc)}
+.mbtn span{display:block;font-size:clamp(10.5px,.6vw,14px);color:var(--muted);margin-top:2px}
+.mbtn:hover{border-color:var(--mc)}
+.mbtn.on{background:#fff;border-color:var(--mc);box-shadow:0 0 0 2px var(--mc) inset;font-weight:700}
+.prow{display:grid;grid-template-columns:clamp(72px,5vw,96px) 1fr auto;gap:6px;align-items:center;
+  font-size:clamp(11.5px,.67vw,16px);margin-bottom:5px}
+.prow label{color:var(--muted);white-space:nowrap}
+.prow input[type=range]{width:100%;height:16px;accent-color:var(--blue);cursor:pointer}
+.prow .pv{font-family:Consolas,monospace;font-weight:700;color:var(--deep);min-width:52px;text-align:right;white-space:nowrap}
+.prow select{font-family:inherit;font-size:clamp(11.5px,.67vw,16px);padding:4px 6px;border:1px solid var(--line);
+  border-radius:6px;background:var(--panel2);color:var(--ink);width:100%}
+.swrow{display:flex;gap:6px;margin:8px 0 6px;flex-wrap:wrap}
+.sw{cursor:pointer;border:1px solid var(--line);background:var(--panel2);border-radius:7px;
+  padding:5px 9px;font-size:clamp(11px,.65vw,15px);font-family:inherit;color:var(--muted);transition:.15s}
+.sw.on{background:#E3F0E8;border-color:var(--teal);color:#1E6157;font-weight:700}
+.sw.off{background:#F8E4E1;border-color:var(--red);color:#8E2A22;font-weight:700}
+.sw:hover{filter:brightness(.97)}
+.codebox{background:#2E2A22;color:#F3E9D2;border-radius:9px;padding:9px 11px 12px;
+  font-family:Consolas,"Courier New",monospace;font-size:clamp(11.5px,.72vw,17px);line-height:1.45;
+  max-height:270px;overflow:auto;white-space:pre;tab-size:2}
+.cline{display:block;border-left:3px solid transparent;padding-left:5px;margin-left:-8px;transition:.2s}
+.cline.on{background:rgba(143,211,244,.16);border-left-color:#8FD3F4}
+.k{color:#8FD3F4}.t{color:#F0B27A}.v{color:#D6E9A8}.cm{color:#9B8F77}.lit{color:#F19BB6}.fn{color:#F6D98A}
+.oprow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-top:8px}
+button.act{cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--ink);
+  border-radius:7px;padding:clamp(6px,.8vh,10px) 4px;font-size:clamp(11px,.65vw,15px);font-family:inherit;transition:.15s}
+button.act:hover{background:#fff;border-color:var(--blue);color:var(--deep)}
+button.act.primary{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700}
+button.act.primary:hover{background:var(--deep)}
+button.act.warn{color:#8E2A22;border-color:#E0B4AE}
+button.act:disabled{opacity:.42;cursor:not-allowed;transform:none}
+button.act.wide{grid-column:1/-1}
+
+/* ---------- 中栏 ---------- */
+.stage-col{padding:12px 12px 10px}
+.stage-title{font-size:clamp(13px,.78vw,19px);color:var(--deep);font-weight:700;margin:0 0 5px 6px;display:flex;justify-content:space-between;gap:10px}
+.stage-title em{font-style:normal;font-size:clamp(11px,.65vw,15px);color:var(--muted);font-weight:400}
+svg#scene{width:100%;height:auto;display:block;background:var(--panel2);border:1px solid var(--line);border-radius:9px;fill:var(--ink)}
+svg text{font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif}
+.mono{font-family:Consolas,"Courier New",monospace}
+.zs{font-size:11.5px;fill:var(--muted)}
+.flow{fill:none;stroke:#B7A480;stroke-width:2.4;stroke-linejoin:round}
+.flow.hot{stroke:var(--blue);stroke-width:3.4}
+.track{fill:none;stroke:none}
+.big{font-family:Consolas,"Courier New",monospace;font-weight:700}
+.pulse{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.42}}
+.status{margin-top:7px;background:var(--panel2);border:1px solid var(--line);border-left:5px solid var(--blue);
+  border-radius:8px;padding:7px 12px;font-size:clamp(12px,.7vw,16px);line-height:1.5;min-height:50px;}
+.status b{color:var(--deep)}
+.status.err{border-left-color:var(--red);color:#8E2A22}
+.status.ok{border-left-color:var(--teal)}
+.status.warn{border-left-color:var(--amber)}
+.legend{display:flex;flex-wrap:wrap;gap:3px 18px;margin-top:6px;font-size:clamp(11px,.65vw,15px);color:var(--muted);line-height:1.55}
+.legend span{display:flex;align-items:flex-start;gap:6px;flex:1 1 45%}
+.legend span.wide{flex:1 1 100%}
+.legend i{width:9px;height:9px;border-radius:3px;flex:none;margin-top:4px}
+.legend b{color:var(--ink);white-space:nowrap}
+
+/* ---------- 右栏 ---------- */
+.kv{display:grid;grid-template-columns:clamp(80px,5.2vw,100px) 1fr;gap:3px 8px;font-size:clamp(11.5px,.68vw,16px);margin:0 0 7px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;font-weight:600;word-break:break-all}
+.calc{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 10px;margin-bottom:7px}
+.calc .bigv{font-family:Consolas,monospace;font-size:clamp(17px,1.05vw,26px);font-weight:700;color:var(--deep);line-height:1.2}
+.calc .lb{font-size:clamp(11px,.65vw,15px);color:var(--muted)}
+.calc .fm{font-family:Consolas,monospace;font-size:clamp(10.8px,.63vw,14px);color:var(--muted);margin-top:3px;line-height:1.45}
+.calc .fm+.fm{margin-top:1px}
+.baudtab{width:100%;border-collapse:collapse;font-size:clamp(11px,.64vw,15px);margin-top:4px}
+.baudtab th,.baudtab td{border-bottom:1px solid var(--line);padding:3px 4px;text-align:right}
+.baudtab th{color:var(--muted);font-weight:600;text-align:right}
+.baudtab td:first-child,.baudtab th:first-child{text-align:left}
+.baudtab .bad{color:var(--red);font-weight:700}
+.baudtab .good{color:var(--teal);font-weight:700}
+.note{font-size:clamp(11px,.64vw,15px);color:var(--muted);line-height:1.5;margin:5px 0 0}
+details{margin-top:7px;border-top:1px dashed var(--line);padding-top:6px}
+summary{cursor:pointer;font-size:clamp(11.5px,.68vw,16px);font-weight:700;color:var(--deep);outline:none}
+details ol{margin:5px 0 0;padding-left:18px;font-size:clamp(11px,.64vw,15px);line-height:1.42;color:var(--ink)}
+details li{margin-bottom:2px}
+.quiz{background:#FFF8E8;border:1px solid #E0C98F;border-radius:9px;padding:10px 11px;font-size:clamp(11.5px,.68vw,16px);line-height:1.55;margin-bottom:8px}
+.quiz .qcode{font-family:Consolas,monospace;font-size:clamp(11px,.64vw,15px);background:#2E2A22;color:#F3E9D2;padding:6px 8px;border-radius:6px;margin:6px 0;white-space:pre-wrap}
+.qopts{display:flex;flex-direction:column;gap:4px;margin:6px 0}
+.qopt{cursor:pointer;text-align:left;border:1px solid var(--line);background:var(--panel2);border-radius:6px;
+  padding:5px 8px;font-family:inherit;font-size:clamp(11px,.64vw,15px);color:var(--ink)}
+.qopt.on{background:#DCE9F7;border-color:var(--blue);font-weight:700}
+.qopt:hover{border-color:var(--blue)}
+.quiz .res{font-weight:700;margin-top:5px;font-size:clamp(11px,.64vw,15px)}
+footer{margin-top:8px;border-top:1px solid var(--line);padding-top:6px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;font-size:clamp(11px,.65vw,15px);color:var(--muted);flex:none}
+
+/* ================= 自适应：1920×1080 为设计锚点 ================= */
+@media (min-width:2100px){ .wrap{width:min(92vw,2500px)} }
+@media (max-width:1500px){
+  .grid{grid-template-columns:clamp(265px,20vw,320px) minmax(0,1fr) clamp(265px,21vw,330px)}
+  .legend span{flex:1 1 100%}
+}
+/* ≤1400：主图独占首行放大，控制栏与计算栏并排次之 */
+@media (max-width:1400px){
+  .grid{grid-template-columns:1fr 1fr;align-content:start}
+  .stage-col{grid-column:1/-1;order:-1}
+  .grid > .col:last-child{grid-column:auto;min-height:0}
+  .grid > .col:last-child .kv{grid-template-columns:110px 1fr}
+  .legend span{flex:1 1 45%}
+  .col{min-height:0}
+  .codebox{max-height:230px}
+}
+@media (max-width:820px){
+  .wrap{width:94vw;min-height:0}
+  .grid{grid-template-columns:1fr;align-content:start}
+  .grid > .col:last-child{grid-column:auto}
+  .stage-col{order:-1}
+  header .tag{display:none} header .sub{display:none}
+  .legend span{flex:1 1 100%}
+  footer span:last-child{display:none}
+}
+@media (max-width:560px){
+  .modes{grid-template-columns:1fr 1fr 1fr}
+  .oprow{grid-template-columns:1fr 1fr}
+  .codebox{max-height:200px}
+}
+@media (max-height:820px){
+  .wrap{min-height:0}
+  .grid{align-content:start}
+  .col{min-height:0}
+  .codebox{max-height:190px}
+  footer{margin-top:6px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>C51 定时器 · 从一行配置到一次溢出</h1>
+    <span class="sub">8051 单片机原理与应用 · 交互动画 02</span>
+    <span class="tag">Keil C51 ｜ 方式 0/1/2 ｜ 单文件离线可用</span>
+  </header>
+
+  <main class="grid">
+    <!-- ================= 左栏：配置与代码 ================= -->
+    <section class="col">
+      <h2>① 选工作方式</h2>
+      <div class="modes" id="modes"></div>
+      <p class="hint" id="modeHint"></p>
+
+      <h2>② 调参数</h2>
+      <div class="prow"><label>晶振 fosc</label>
+        <select id="fosc">
+          <option value="12000000">12 MHz · 教学常用</option>
+          <option value="11059200">11.0592 MHz · 串口</option>
+          <option value="24000000">24 MHz</option>
+          <option value="6000000">6 MHz</option>
+        </select><span class="pv" id="pvFosc">12.000</span></div>
+      <div class="prow"><label>内核分频</label>
+        <select id="div">
+          <option value="12">12T（传统 8051）</option>
+          <option value="6">6T</option>
+          <option value="1">1T（STC12/15 等）</option>
+        </select><span class="pv" id="pvDiv">12T</span></div>
+      <div class="prow"><label>TH0 初值</label>
+        <input type="range" id="th" min="0" max="255" value="252"><span class="pv" id="pvTh">0xFC</span></div>
+      <div class="prow"><label>TL0 初值</label>
+        <input type="range" id="tl" min="0" max="255" value="24"><span class="pv" id="pvTl">0x18</span></div>
+      <div class="prow"><label>SMOD</label>
+        <select id="smod"><option value="0">0 · 不倍增</option><option value="1">1 · 波特率 ×2</option></select>
+        <span class="pv" id="pvSmod">0</span></div>
+
+      <div class="swrow">
+        <button class="sw on" id="bTR">TR0 = 1 · 已启动</button>
+        <button class="sw off" id="bReload">ISR 未重装</button>
+      </div>
+
+      <h2 class="tight">③ C51 代码随配置变化</h2>
+      <div class="codebox" id="codebox"></div>
+
+      <h2 class="tight">④ 操作</h2>
+      <div class="oprow">
+        <button class="act primary" id="bStep">单步 +1</button>
+        <button class="act" id="bTen">快进 ×10</button>
+        <button class="act" id="bNear">冲到溢出</button>
+        <button class="act" id="bRun">连续运行</button>
+        <button class="act" id="bCalc">反算 1 ms 初值</button>
+        <button class="act" id="bQuiz">先猜后播</button>
+        <button class="act warn wide" id="bReset">复 位</button>
+      </div>
+    </section>
+
+    <!-- ================= 中栏：硬件链路 ================= -->
+    <section class="col stage-col">
+      <div class="stage-title">
+        <span>硬件链路 · 计数 → 溢出 → 标志 → 重装</span>
+        <em>数字与波形为教学慢放；右侧给出真实时长</em>
+      </div>
+      <svg id="scene" viewBox="0 0 900 500" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#B7A480"/></marker>
+          <marker id="arwB" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#1D5FA8"/></marker>
+          <marker id="arwR" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#C4342B"/></marker>
+          <filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+
+        <!-- ===== 顶部：时钟链路 ===== -->
+        <text x="24" y="24" font-size="12" font-weight="700" fill="#7A6A52">① 计数脉冲从哪来</text>
+        <g>
+          <rect x="24" y="34" width="168" height="66" rx="9" fill="#002E63" stroke="#001C3E" stroke-width="2"/>
+          <text x="108" y="57" text-anchor="middle" font-size="12" fill="#C9DDF2">晶振 fosc</text>
+          <text x="108" y="82" text-anchor="middle" class="big" font-size="19" fill="#FFFFFF" id="sFosc">12.0000 MHz</text>
+        </g>
+        <path class="flow" d="M192 67 L222 67" marker-end="url(#arw)"/>
+        <g>
+          <rect x="224" y="34" width="180" height="66" rx="9" fill="#DCE9F7" stroke="#1D5FA8" stroke-width="2"/>
+          <text x="314" y="57" text-anchor="middle" font-size="12" fill="#1D5FA8" id="sDivLb">12T 分频 · ÷12</text>
+          <text x="314" y="82" text-anchor="middle" class="big" font-size="16" fill="#002E63" id="sTmc">1.000 μs / +1</text>
+        </g>
+        <path class="flow" d="M404 67 L434 67" marker-end="url(#arw)"/>
+        <g>
+          <rect x="436" y="34" width="168" height="66" rx="9" fill="#E3F0E8" stroke="#2E8B8B" stroke-width="2" id="gateBox">
+            <title>GATE=0 时只要 TR0=1 即开始计数</title></rect>
+          <text x="520" y="57" text-anchor="middle" font-size="12" fill="#2E8B8B">启动闸门 TR0</text>
+          <text x="520" y="82" text-anchor="middle" class="big" font-size="16" fill="#1E6157" id="sTR">TR0=1 · 计数中</text>
+        </g>
+        <path class="flow" d="M604 67 L634 67" marker-end="url(#arw)"/>
+        <g>
+          <circle cx="666" cy="67" r="26" fill="#F0E7D2" stroke="#8C7A5C" stroke-width="2"/>
+          <text x="666" y="75" text-anchor="middle" class="big" font-size="19" fill="#3A2E1F">+1</text>
+        </g>
+        <path class="flow" d="M692 67 L724 67 L724 120" marker-end="url(#arw)"/>
+        <path id="p_pulse" class="track" d="M192 67 L222 67 L404 67 L434 67 L604 67 L634 67 L692 67 L724 67 L724 150"/>
+
+        <g id="pulseDot" transform="translate(192,67)" filter="url(#glow)" style="display:none">
+          <circle r="8" fill="#FFFFFF" stroke="#1D5FA8" stroke-width="2.5"/>
+        </g>
+
+        <!-- ===== 计数寄存器 ===== -->
+        <text x="24" y="124" font-size="12" font-weight="700" fill="#7A6A52">② 计数寄存器</text>
+        <g>
+          <rect x="24" y="136" width="192" height="112" rx="9" fill="#DCE9F7" stroke="#1D5FA8" stroke-width="2"/>
+          <text x="120" y="158" text-anchor="middle" font-size="12" fill="#1D5FA8" id="sThLb">TH0 · 高 8 位</text>
+          <text x="120" y="207" text-anchor="middle" class="big" font-size="46" fill="#002E63" id="sTh">FC</text>
+          <text x="120" y="233" text-anchor="middle" class="zs" id="sThNote">初值高字节</text>
+        </g>
+        <g>
+          <rect x="228" y="136" width="192" height="112" rx="9" fill="#E9F2FA" stroke="#1D5FA8" stroke-width="2"/>
+          <text x="324" y="158" text-anchor="middle" font-size="12" fill="#1D5FA8" id="sTlLb">TL0 · 低 8 位</text>
+          <text x="324" y="207" text-anchor="middle" class="big" font-size="46" fill="#002E63" id="sTl">18</text>
+          <text x="324" y="233" text-anchor="middle" class="zs" id="sTlNote">初值低字节</text>
+        </g>
+
+        <!-- 进度区 -->
+        <g>
+          <rect x="436" y="136" width="440" height="112" rx="9" fill="#F5EEDD" stroke="#C9B795" stroke-width="1.6"/>
+          <text x="450" y="158" font-size="12" font-weight="700" fill="#3A2E1F" id="sProgTitle">从初值计到 0xFFFF，然后溢出</text>
+          <rect x="450" y="170" width="412" height="22" rx="5" fill="#E4D6BA"/>
+          <rect id="progFill" x="450" y="170" width="0" height="22" rx="5" fill="#1D5FA8"/>
+          <text x="450" y="211" class="zs" font-size="11.5" id="sProgL">已加 0 次</text>
+          <text x="862" y="211" text-anchor="end" class="zs" font-size="11.5" id="sProgR">还需 1000 次</text>
+          <text x="450" y="233" class="mono" font-size="12" fill="#002E63" id="sNow">当前 0xFC18</text>
+          <text x="862" y="233" text-anchor="end" class="mono" font-size="12" fill="#7A6A52" id="sEnd">终点 0xFFFF</text>
+        </g>
+
+        <!-- ===== 溢出与重装 ===== -->
+        <text x="24" y="272" font-size="12" font-weight="700" fill="#7A6A52">③ 溢出瞬间发生了什么</text>
+        <g>
+          <rect x="24" y="284" width="192" height="82" rx="9" fill="#F0E7D2" stroke="#8C7A5C" stroke-width="1.8" id="tfBox"/>
+          <circle cx="52" cy="325" r="15" fill="#C9B795" id="tfLamp"/>
+          <text x="80" y="316" class="mono" font-size="16" font-weight="700" fill="#3A2E1F">TF0</text>
+          <text x="80" y="338" class="zs" font-size="11.5" id="sTf">溢出标志 · 0</text>
+          <text x="80" y="355" class="zs" font-size="11" id="sTf2">进 ISR 时硬件自动清 0</text>
+        </g>
+
+        <!-- 方式 2 的回弹箭头（默认隐藏） -->
+        <path id="reloadArc" class="flow" d="M120 136 C120 108 324 108 324 136" marker-end="url(#arwB)"
+              stroke="#7A4FA3" stroke-width="3" style="display:none"/>
+        <path id="p_reload" class="track" d="M120 136 C120 108 324 108 324 136"/>
+        <g id="reloadDot" transform="translate(120,120)" filter="url(#glow)" style="display:none">
+          <circle r="7" fill="#FFFFFF" stroke="#7A4FA3" stroke-width="2.5"/>
+        </g>
+
+        <g>
+          <rect x="228" y="284" width="380" height="82" rx="9" fill="#F8DFDC" stroke="#C4342B" stroke-width="1.8" id="reloadBox"/>
+          <text x="242" y="307" font-size="12.5" font-weight="700" fill="#8E2A22" id="reloadTitle">方式 1 · 不自动重装</text>
+          <text x="242" y="328" class="zs" font-size="11.5" id="reloadL1">溢出后寄存器回到 0000H，从 0 继续往上数</text>
+          <text x="242" y="346" class="zs" font-size="11.5" id="reloadL2">若 ISR 不重装，下一次间隔会变成 65536 次</text>
+          <text x="242" y="362" class="zs" font-size="11" id="reloadL3">点左栏「ISR 未重装」开关对比差别</text>
+        </g>
+        <g>
+          <rect x="620" y="284" width="256" height="82" rx="9" fill="#E9DFF3" stroke="#7A4FA3" stroke-width="1.8"/>
+          <text x="634" y="307" font-size="12.5" font-weight="700" fill="#7A4FA3">若开了中断</text>
+          <text x="634" y="328" class="mono" font-size="11.5" fill="#3A2E1F">void T0_ISR(void) interrupt 1</text>
+          <text x="634" y="346" class="zs" font-size="11.5">矢量 000BH · PC 跳转 · 现场保护</text>
+          <text x="634" y="362" class="zs" font-size="11">ET0=1 且 EA=1 才会响应</text>
+        </g>
+
+        <!-- ===== 时间轴 ===== -->
+        <text x="24" y="392" font-size="12" font-weight="700" fill="#7A6A52">④ 溢出脉冲时间轴（横向间距不按时间比例）</text>
+        <line x1="60" y1="448" x2="860" y2="448" stroke="#B7A480" stroke-width="2"/>
+        <g id="pulses">
+          <path d="M150 448 L150 414" stroke="#1D5FA8" stroke-width="3.5"/>
+          <path d="M144 420 L150 410 L156 420 z" fill="#1D5FA8"/>
+          <path d="M430 448 L430 414" stroke="#1D5FA8" stroke-width="3.5"/>
+          <path d="M424 420 L430 410 L436 420 z" fill="#1D5FA8"/>
+          <path d="M710 448 L710 414" stroke="#1D5FA8" stroke-width="3.5"/>
+          <path d="M704 420 L710 410 L716 420 z" fill="#1D5FA8"/>
+        </g>
+        <text x="150" y="467" text-anchor="middle" class="zs" font-size="11.5">第 1 次溢出</text>
+        <text x="430" y="467" text-anchor="middle" class="zs" font-size="11.5">第 2 次</text>
+        <text x="710" y="467" text-anchor="middle" class="zs" font-size="11.5">第 3 次</text>
+        <rect x="222" y="418" width="176" height="23" rx="5" fill="#E3F0E8" stroke="#2E8B8B"/>
+        <text x="310" y="434" text-anchor="middle" class="mono" font-size="12" font-weight="700" fill="#1E6157" id="sT1">T₁ = 1.000 ms</text>
+        <rect x="502" y="418" width="176" height="23" rx="5" fill="#E3F0E8" stroke="#2E8B8B" id="t2Box"/>
+        <text x="590" y="434" text-anchor="middle" class="mono" font-size="12" font-weight="700" fill="#1E6157" id="sT2">T₂ = 1.000 ms</text>
+        <text x="24" y="487" class="zs" font-size="11" id="sAxisNote">方式 1 已在 ISR 重装 → 每次间隔相同（自动重装的方式 2 天然如此）</text>
+      </svg>
+      <div class="status" id="status"><b>准备就绪。</b> 点「单步 +1」看计数加一；点「冲到溢出」把溢出瞬间慢放，观察 TF0 与是否重装。</div>
+      <div class="legend">
+        <span><i style="background:#1D5FA8"></i><b>蓝色包裹</b> = 一个机器周期的一次 +1，从晶振经分频与 TR0 闸门流向计数寄存器</span>
+        <span><i style="background:#7A4FA3"></i><b>紫色回弹</b> = 方式 2 溢出时硬件把 TH0 装回 TL0，TH0 本身不变</span>
+        <span class="wide"><i style="background:#8C7A5C"></i>类比：往量杯里一滴一滴加水，满了溢出一次；<b>初值是杯里预先已有的水量</b>，不是定时长度。真实硬件是寄存器加 1 到全 1 再回 0，没有液体，也没有「倒水」动作。</span>
+      </div>
+    </section>
+
+    <!-- ================= 右栏：真实计算 ================= -->
+    <section class="col">
+      <div id="quizBox" class="quiz" style="display:none">
+        <b>先猜后播 · 第 <span id="qno">1</span> 题</b>
+        <div class="qcode" id="qcode"></div>
+        <div id="qtext"></div>
+        <div class="qopts" id="qopts"></div>
+        <button class="act primary" id="bVerify" style="width:100%;margin-top:4px">验 证</button>
+        <div class="res" id="qres"></div>
+      </div>
+
+      <h2>真实时长计算</h2>
+      <div class="calc">
+        <div class="lb">一次溢出 = <b id="cCount" style="color:#002E63">1000 次 +1</b></div>
+        <div class="bigv" id="cTime">1.000 ms</div>
+        <div class="fm">T = (M − N) × 分频 / fosc　·　<span id="cCountFm">M − N = 65536 − 0xFC18 = 1000</span></div>
+        <div class="fm" id="cTimeFm">机器周期 1.000 μs ｜ 溢出 1.000 kHz ｜ 最长 65.54 ms</div>
+      </div>
+
+      <dl class="kv" id="kv"></dl>
+
+      <h2 class="tight">借 T1 方式 2 看波特率</h2>
+      <table class="baudtab">
+        <thead><tr><th>晶振</th><th>TH1=<span id="th1Lb">0xFC</span> 实际波特率</th><th>对 9600 误差</th></tr></thead>
+        <tbody id="baudBody"></tbody>
+      </table>
+      <p class="note" id="baudNote"></p>
+
+      <details open>
+        <summary>比喻的边界 · 五个易错点</summary>
+        <ol>
+          <li><b>动画被刻意放慢。</b>真实硬件每个机器周期加 1；12 MHz / 12T 下 1 ms 内加 1000 次，肉眼与示波器都看不到「逐格」过程。右侧数值才是真实时长。</li>
+          <li><b>初值是起跑点，不是定时长度。</b>初值越大离 0xFFFF 越近，溢出越快。写 <span class="mono">TH0=0xFF</span> 得到的是最短定时，不是最长。</li>
+          <li><b>方式 1 溢出后不会自动回到初值。</b>它从 0000H 继续计数；若 ISR 不重装，第二次间隔变成 65536 个机器周期（12 MHz 下约 65.5 ms），LED 会忽快忽慢。</li>
+          <li><b>TF0 与 TI/RI 不同。</b>CPU 响应定时器中断时硬件自动清 TF0；串口发送/接收标志 TI / RI 必须由软件清零。若不开中断而用查询法，则 TF0 要自己清。</li>
+          <li><b>分频与内核有关。</b>本页 12T 为传统 8051；STC12/15 等 1T 内核需选 1T 档。<span class="mono">C/T=1</span> 时改数 T0 引脚下降沿，一次跳变需 2 个机器周期识别，最高计数率约 fosc/24；<span class="mono">GATE=1</span> 还要求 INT0 为高。方式 3 拆分 T0，C51 课一般不涉及。</li>
+        </ol>
+      </details>
+
+      <details>
+        <summary>这张图对应哪些考点</summary>
+        <ol>
+          <li>初值计算：<span class="mono">N = M − T·fosc/分频</span>，M 取 8192 / 65536 / 256。</li>
+          <li>方式 2 为什么适合作波特率发生器：自动重装使溢出率恒定，无需 ISR 干预。</li>
+          <li>11.0592 MHz 晶振的来历：12 MHz 配 TH1=0xFD 得 10416.7 bps，误差 +8.5%，串口会丢帧。</li>
+          <li><span class="mono">TMOD &= 0xF0; TMOD |= 0x01;</span> 为什么要用「与 → 或」而不是直接赋值：不影响 T1 的配置。</li>
+        </ol>
+      </details>
+    </section>
+  </main>
+
+  <footer>
+    <span>8051 单片机原理与应用 · C51 定时器交互演示 · 单 HTML 文件，无外部依赖，可离线投影或发给学生</span>
+    <span>视觉规范：米黄 #EFE2C4 · 深蓝 #002E63</span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+var C = {m0:'#7A4FA3', m1:'#1D5FA8', m2:'#2E8B8B'};
+var MODES = [
+  {id:0, name:'方式 0', bits:'13 位', M:8192,  tmod:'0x00', color:C.m0,
+   hint:'13 位（TH0 八位 + TL0 低五位），为兼容 8048 保留，C51 工程里少用。最大计数 8192。',
+   thLb:'TH0 · 8 位', tlLb:'TL0 · 低 5 位', end:'0x1FFF'},
+  {id:1, name:'方式 1', bits:'16 位', M:65536, tmod:'0x01', color:C.m1,
+   hint:'16 位定时，最常用。溢出后回到 0000H 继续数——必须在 ISR 里手动重装 TH0/TL0，否则第二次间隔完全变样。',
+   thLb:'TH0 · 高 8 位', tlLb:'TL0 · 低 8 位', end:'0xFFFF'},
+  {id:2, name:'方式 2', bits:'8 位重装', M:256, tmod:'0x02', color:C.m2,
+   hint:'8 位自动重装：TL0 计数，TH0 保存重装值且始终不变。溢出瞬间硬件把 TH0 装回 TL0，溢出率恒定，是串口波特率的标准选择。',
+   thLb:'TH0 · 重装值（不变）', tlLb:'TL0 · 计数（会回弹）', end:'0x00FF'}
+];
+var QUIZ = [
+  {code:'12 MHz / 12T / 方式 1\nTH0=0xFC, TL0=0x18  →  1 ms\n改成 TH0=0xFF, TL0=0xF0',
+   text:'把初值改大之后，定时时间是变长还是变短？',
+   opts:['变长（初值大 = 数得久）','变短（离 0xFFFF 更近了）','不变（初值不影响溢出）'], a:1,
+   why:'初值是起跑点。初值 0xFFF0 只需再数 16 次就溢出，定时从 1 ms 缩到 16 μs。',
+   demo:function(){ setMode(1); $('th').value=255; $('tl').value=240; syncFromUI(); }},
+  {code:'方式 1 · 溢出后 ISR 没有重装 TH0/TL0\nsize = 65536 次 +1  @ 1 μs/次',
+   text:'第二次溢出与第一次相隔多久？',
+   opts:['仍是 1 ms','约 65.5 ms','约 0.5 ms'], a:1,
+   why:'不重装就从 0000H 数到 0xFFFF，共 65536 个机器周期 = 65.536 ms，约为原来的 65 倍。',
+   demo:function(){ setMode(1); $('th').value=252; $('tl').value=24; S.reload=false; syncSw(); syncFromUI(); }},
+  {code:'串口 9600 bps 需要稳定的溢出率\n不希望每次进 ISR 重装初值',
+   text:'该选哪种工作方式？',
+   opts:['方式 0（13 位）','方式 1（16 位）','方式 2（8 位自动重装）'], a:2,
+   why:'方式 2 溢出时硬件自动把 TH1 装回 TL1，无需 ISR 干预，溢出率严格恒定。',
+   demo:function(){ setMode(2); $('th').value=253; $('tl').value=253; syncFromUI(); }}
+];
+
+var S = {mode:1, fosc:12e6, div:12, th:0xFC, tl:0x18, smod:0,
+  N:0xFC18, cnt:0xFC18, tr:true, tf:false, reload:true,
+  ticks:0, ovf:0, running:false, speed:1, gen:0, raf:0,
+  quizOn:false, qidx:0, qpick:-1};
+var $ = function(id){ return document.getElementById(id); };
+var M = function(){ return MODES[S.mode].M; };
+var hex = function(v,n){ var s=(v>>>0).toString(16).toUpperCase(); while(s.length<n) s='0'+s; return '0x'+s; };
+var hx = function(v){ return hex(v, S.mode===2?2:4); };
+var pad2 = function(v){ var s=(v>>>0).toString(16).toUpperCase(); return s.length<2?'0'+s:s; };
+
+function rawN(){                    // 从 TH/TL 组装当前方式的初值
+  if(S.mode===0) return S.th*32 + (S.tl & 0x1F);
+  if(S.mode===2) return S.tl;
+  return S.th*256 + S.tl;
+}
+function splitN(n){                 // 把初值按方式拆回 TH/TL 并写进滑块
+  n = Math.max(0, Math.min(M()-1, Math.round(n)));
+  if(S.mode===0){ S.th=Math.floor(n/32); S.tl=n&0x1F; }
+  else if(S.mode===2){ S.th=n; S.tl=n; }
+  else { S.th=Math.floor(n/256); S.tl=n&255; }
+  $('th').value=S.th; $('tl').value=S.tl;
+}
+function tmc(){ return S.div / S.fosc; }        // 一次 +1 的真实秒数
+function fmtT(s){
+  if(!isFinite(s)) return '—';
+  if(s<1e-6) return (s*1e9).toFixed(1)+' ns';
+  if(s<1e-3) { var u=s*1e6; return u.toFixed(u<10?3:2)+' μs'; }
+  if(s<1)    { var m=s*1e3; return m.toFixed(m<10?3:2)+' ms'; }
+  return s.toFixed(3)+' s';
+}
+function fmtF(hz){
+  if(!isFinite(hz)||hz<=0) return '—';
+  if(hz>=1e6) return (hz/1e6).toFixed(3)+' MHz';
+  if(hz>=1e3) return (hz/1e3).toFixed(3)+' kHz';
+  return hz.toFixed(2)+' Hz';
+}
+
+/* ---------- 左栏构建 ---------- */
+function buildModes(){
+  var h='';
+  MODES.forEach(function(m){
+    h += '<button class="mbtn'+(m.id===S.mode?' on':'')+'" data-m="'+m.id+'" style="--mc:'+m.color+'">'+
+         '<b>'+m.name+'</b><span>'+m.bits+'</span></button>';
+  });
+  $('modes').innerHTML=h;
+  Array.prototype.forEach.call(document.querySelectorAll('.mbtn'), function(b){
+    b.onclick=function(){ setMode(parseInt(b.getAttribute('data-m'),10)); };
+  });
+}
+function setMode(m){
+  if(S.running) stopRun();
+  S.mode=m; S.reload=true; S.N=rawN(); S.tf=false; S.ticks=0; S.ovf=0;
+  splitN(Math.min(rawN(), M()-1));
+  buildModes();
+  $('modeHint').textContent=MODES[m].hint;
+  resetCount(); renderAll();
+  setStatus('<b>已切到 '+MODES[m].name+'（'+MODES[m].bits+'）。</b> '+MODES[m].hint,'');
+}
+
+/* ---------- C51 代码 ---------- */
+var CODE_TAGS = {cfg:'cfg', start:'start', isr:'isr'};
+function codeLines(){
+  var m=MODES[S.mode], t=fmtT((M()-S.N)*tmc());
+  var L=[], add=function(x,tag){ L.push({t:x,tag:tag}); };
+  add('<span class="cm">/* '+m.name+' · '+m.bits+' · 目标 '+t+' */</span>','');
+  add('<span class="k">void</span> <span class="fn">Timer0_Init</span>(<span class="k">void</span>){','');
+  add('  TMOD &amp;= <span class="lit">0xF0</span>;  TMOD |= <span class="lit">'+m.tmod+'</span>;',CODE_TAGS.cfg);
+  add('  TH0 = <span class="lit">'+hex(S.th,2)+'</span>;  TL0 = <span class="lit">'+hex(S.tl,2)+'</span>;',CODE_TAGS.cfg);
+  add('  TF0 = <span class="lit">0</span>;  ET0 = <span class="lit">1</span>;  EA = <span class="lit">1</span>;',CODE_TAGS.cfg);
+  add('  TR0 = <span class="lit">1</span>;  <span class="cm">// 启动计数</span>',CODE_TAGS.start);
+  add('}','');
+  add('<span class="k">void</span> <span class="fn">T0_ISR</span>(<span class="k">void</span>) <span class="k">interrupt</span> <span class="lit">1</span>{',CODE_TAGS.isr);
+  if(S.mode===2){
+    add('  <span class="cm">// 硬件已自动把 TH0 装回 TL0</span>',CODE_TAGS.isr);
+  } else if(S.reload){
+    add('  TH0 = <span class="lit">'+hex(S.th,2)+'</span>;  TL0 = <span class="lit">'+hex(S.tl,2)+'</span>;  <span class="cm">// 手动重装</span>',CODE_TAGS.isr);
+  } else {
+    add('  <span class="cm">// ⚠ 忘了重装！已从 0000H 开始</span>',CODE_TAGS.isr);
+  }
+  add('  P1 ^= <span class="lit">0x01</span>;  <span class="cm">// 翻转 LED</span>',CODE_TAGS.isr);
+  add('}','');
+  return L;
+}
+function renderCode(hl){
+  var lines=codeLines();
+  $('codebox').innerHTML=lines.map(function(x){
+    return '<span class="cline'+(hl&&x.tag===hl?' on':'')+'">'+x.t+'</span>';
+  }).join('');
+}
+function hlCode(tag){ renderCode(tag); }
+
+/* ---------- 同步 UI → 状态 ---------- */
+function syncFromUI(){
+  S.fosc=parseFloat($('fosc').value);
+  S.div=parseInt($('div').value,10);
+  S.smod=parseInt($('smod').value,10);
+  S.th=parseInt($('th').value,10);
+  S.tl=parseInt($('tl').value,10);
+  S.N=rawN();
+  S.tf=false; S.ticks=0; S.ovf=0;
+  resetCount(); renderAll();
+}
+function syncSw(){
+  var a=$('bTR'), b=$('bReload');
+  a.className='sw '+(S.tr?'on':'off');
+  a.textContent=S.tr?'TR0 = 1 · 已启动':'TR0 = 0 · 已停止';
+  b.className='sw '+(S.reload?'on':'off');
+  b.textContent=S.mode===2?'方式 2 · 硬件自动重装':(S.reload?'ISR 已重装':'ISR 未重装');
+  b.disabled=(S.mode===2)||S.running;
+  b.style.opacity=(S.mode===2)?'.62':'1';
+}
+function resetCount(){ S.cnt=S.N; S.tf=false; }
+
+/* ---------- 主渲染 ---------- */
+function renderAll(){
+  var m=MODES[S.mode], mm=M(), left=mm-S.N, T=left*tmc(), Tnext=(S.mode===2||S.reload)?T:mm*tmc();
+  // 左栏数值
+  $('pvFosc').textContent=(S.fosc/1e6).toFixed(4).slice(0,7);
+  $('pvDiv').textContent=S.div+'T';
+  $('pvTh').textContent=hex(S.th,2);
+  $('pvTl').textContent=hex(S.tl,2);
+  $('pvSmod').textContent=S.smod;
+  syncSw(); renderCode();
+  // SVG 顶部
+  $('sFosc').textContent=(S.fosc/1e6).toFixed(4)+' MHz';
+  $('sDivLb').textContent=S.div+'T 分频 · ÷'+S.div;
+  $('sTmc').textContent=fmtT(tmc())+' / +1';
+  $('sTR').textContent=S.tr?'TR0=1 · 计数中':'TR0=0 · 已停';
+  $('gateBox').setAttribute('stroke',S.tr?'#2E8B8B':'#C4342B');
+  // 寄存器与进度
+  $('sThLb').textContent=m.thLb;
+  $('sTlLb').textContent=m.tlLb;
+  drawRegs();
+  $('sThNote').textContent=(S.mode===2?'重装值保持不变':(S.mode===0?'初值高 8 位':'初值高字节'));
+  $('sTlNote').textContent=(S.mode===2?'溢出时自动回弹':(S.mode===0?'只用低 5 位':'初值低字节'));
+  $('sProgTitle').textContent='从初值 '+hx(S.N)+' 计到 '+m.end+'，然后溢出';
+  var done=Math.max(0,Math.min(left, S.cnt-S.N));
+  var pct=left>0?Math.min(1,done/left):1;
+  $('progFill').setAttribute('width', (412*pct).toFixed(1));
+  $('progFill').setAttribute('fill', S.tf?'#C4342B':m.color);
+  $('sProgL').textContent='已加 '+done+' 次（本次共 '+left+' 次）';
+  $('sProgR').textContent=S.tf?'已溢出':'还需 '+Math.max(0,left-done)+' 次';
+  $('sNow').textContent='当前 '+hx(S.cnt);
+  $('sEnd').textContent='终点 '+m.end;
+  // TF
+  $('tfLamp').setAttribute('fill',S.tf?'#C4342B':'#C9B795');
+  $('tfBox').setAttribute('stroke',S.tf?'#C4342B':'#8C7A5C');
+  $('sTf').textContent='溢出标志 · '+(S.tf?'1':'0');
+  // 重装区
+  var auto=(S.mode===2);
+  $('reloadBox').setAttribute('fill',auto?'#E9DFF3':(S.reload?'#E3F0E8':'#F8DFDC'));
+  $('reloadBox').setAttribute('stroke',auto?'#7A4FA3':(S.reload?'#2E8B8B':'#C4342B'));
+  $('reloadTitle').setAttribute('fill',auto?'#7A4FA3':(S.reload?'#1E6157':'#8E2A22'));
+  $('reloadTitle').textContent=auto?'方式 2 · 硬件自动重装 TH0 → TL0':
+      (S.reload?'方式 1 · ISR 手动重装初值':'方式 1 · 未在 ISR 重装初值');
+  $('reloadL1').textContent=auto?'TL0 计到 0xFF 后再加 1，硬件同一时刻把 TH0 装回 TL0':
+      (S.reload?'ISR 第一条语句把 TH0/TL0 重新写回初值':'溢出后寄存器回到 0000H，从 0 继续往上数');
+  $('reloadL2').textContent=auto?'TH0 全程不变 → 每次溢出间隔严格相同 → 适合做波特率':
+      (S.reload?'两次溢出间隔相同，但 ISR 执行时间会带来微小误差':'若 ISR 不重装，下一次间隔变成 '+mm+' 次 +1');
+  $('reloadL3').textContent=auto?'无需在 ISR 里写 TH0/TL0；计数器仍照常继续':
+      (S.reload?'改 TH0/TL0 初值后，代码里的重装值也要同步改':'点左栏「ISR 未重装」开关对比差别');
+  $('reloadArc').style.display=auto?'':'none';
+  $('tfLamp').classList.toggle('pulse',S.tf);
+  // 时间轴
+  $('sT1').textContent='T₁ = '+fmtT(T);
+  $('sT2').textContent='T₂ = '+fmtT(Tnext);
+  var bad = !(auto||S.reload);
+  $('t2Box').setAttribute('fill',bad?'#F8DFDC':'#E3F0E8');
+  $('t2Box').setAttribute('stroke',bad?'#C4342B':'#2E8B8B');
+  $('sT2').setAttribute('fill',bad?'#8E2A22':'#1E6157');
+  $('sAxisNote').textContent=bad
+    ? '⚠ 未重装：第二次间隔 '+fmtT(Tnext)+'，约为原来的 '+Math.round(Tnext/T)+' 倍 —— 这就是 LED 忽快忽慢的原因'
+    : '每次溢出间隔相同：'+(auto?'方式 2 由硬件保证':'方式 1 靠 ISR 手动重装保证');
+  // 右栏计算
+  $('cCount').textContent=left+' 次 +1';
+  $('cCountFm').textContent='M − N = '+mm+' − '+hx(S.N)+' = '+left;
+  $('cTime').textContent=fmtT(T);
+  $('cTimeFm').textContent='机器周期 '+fmtT(tmc())+'（'+S.div+'T） ｜ 溢出 '+fmtF(1/T)+' ｜ 最长 '+fmtT(mm*tmc());
+  $('kv').innerHTML=
+    '<dt>工作方式</dt><dd>'+m.name+' · '+(S.mode===0?13:(S.mode===1?16:8))+' 位 · 模 M = '+mm+'</dd>'+
+    '<dt>TMOD (T0)</dt><dd class="mono">'+m.tmod+' → GATE=0, C/T=0, M1M0='+(m.id===2?'10':(m.id===1?'01':'00'))+'</dd>'+
+    '<dt>初值 N</dt><dd class="mono">'+hx(S.N)+'　TH0='+hex(S.th,2)+' TL0='+hex(S.tl,2)+'</dd>'+
+    '<dt>机器周期</dt><dd>'+fmtT(tmc())+'（'+S.div+'T @ '+(S.fosc/1e6).toFixed(2).replace(/\.?0+$/,'')+' MHz）</dd>'+
+    '<dt>溢出标志</dt><dd>'+(S.tf?'<span style="color:#C4342B">TF0 = 1</span>':'TF0 = 0')+' · 累计溢出 '+S.ovf+' 次</dd>'+
+    '<dt>计数器现值</dt><dd class="mono">'+hx(S.cnt)+'</dd>';
+  renderBaud();
+}
+function drawRegs(){
+  if(S.mode===0){ $('sTh').textContent=pad2(Math.floor(S.cnt/32)); $('sTl').textContent=pad2(S.cnt&31); }
+  else if(S.mode===2){ $('sTh').textContent=pad2(S.th); $('sTl').textContent=pad2(S.cnt); }
+  else { $('sTh').textContent=pad2(Math.floor(S.cnt/256)); $('sTl').textContent=pad2(S.cnt&255); }
+}
+function renderBaud(){
+  var th1=Math.min(255,Math.max(0,S.th));
+  $('th1Lb').textContent=hex(th1,2);
+  var ideal=256-Math.pow(2,S.smod)*S.fosc/(32*S.div*9600);
+  var rows='';
+  [[11.0592e6,'11.0592'],[12e6,'12.0000'],[24e6,'24.0000']].forEach(function(x){
+    var b=Math.pow(2,S.smod)*x[0]/(32*S.div*(256-th1));
+    var e=(b/9600-1)*100;
+    var cls=Math.abs(e)<1?'good':(Math.abs(e)<10?'':'bad');
+    rows += '<tr><td>'+x[1]+' MHz</td><td>'+b.toFixed(1)+'</td><td class="'+cls+'">'+(e>=0?'+':'')+e.toFixed(2)+'%</td></tr>';
+  });
+  $('baudBody').innerHTML=rows;
+  var b0=Math.pow(2,S.smod)*S.fosc/(32*S.div*(256-th1));
+  $('baudNote').innerHTML='公式：<span class="mono">波特率 = 2<sup>SMOD</sup> × fosc / (32 × 分频 × (256 − TH1))</span>。'+
+    '表中借用当前 <span class="mono">TH0='+hex(th1,2)+'</span> 作为 TH1；当前晶振下为 <b>'+b0.toFixed(1)+' bps</b>。'+
+    '要最接近 9600，TH1 应取 <span class="mono">0x'+Math.max(0,Math.min(255,Math.round(ideal))).toString(16).toUpperCase()+'</span>（SMOD='+S.smod+'）。'+
+    '经典配置 TH1=0xFD 在 11.0592 MHz 下恰好 9600（误差 0%），在 12 MHz 下偏 +8.51% —— 这正是串口选 11.0592 MHz 晶振的原因。';
+}
+
+/* ---------- 状态栏 ---------- */
+function setStatus(html,cls){ var s=$('status'); s.className='status'+(cls?' '+cls:''); s.innerHTML=html; }
+function setButtons(dis){
+  ['bStep','bTen','bNear','bCalc','bQuiz'].forEach(function(id){ $(id).disabled=dis; });
+  ['fosc','div','th','tl','smod','bTR','bReload'].forEach(function(id){ $(id).disabled=dis; });
+  Array.prototype.forEach.call(document.querySelectorAll('.mbtn'),function(b){ b.disabled=dis; });
+}
+
+/* ---------- 动画 ---------- */
+function moveAlong(pathId, dotId, dur, done){
+  var p=$(pathId), len=p.getTotalLength(), t0=performance.now(), dot=$(dotId), my=++S.gen;
+  dot.style.display='';
+  function frame(now){
+    if(my!==S.gen){ dot.style.display='none'; return; }
+    var t=Math.min(1,(now-t0)/dur);
+    var e=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+    var pt=p.getPointAtLength(len*e);
+    dot.setAttribute('transform','translate('+pt.x.toFixed(1)+','+pt.y.toFixed(1)+')');
+    if(t<1) requestAnimationFrame(frame); else { dot.style.display='none'; if(done) done(); }
+  }
+  requestAnimationFrame(frame);
+}
+function oneTick(n, cb){
+  if(!S.tr){
+    setStatus('<b>计数已停止。</b> <span class="mono">TR0 = 0</span>，闸门关闭，晶振脉冲进不来 —— 配置写得再对也不会加 1。','warn');
+    if(cb) cb(); return;
+  }
+  hlCode(CODE_TAGS.start);
+  moveAlong('p_pulse','pulseDot',180,function(){
+    var mm=M(), k=0, overflow=false;
+    while(k<n){
+      S.cnt++; S.ticks++; k++;
+      if(S.cnt>=mm){
+        overflow=true; S.ovf++;
+        S.cnt = (S.mode===2) ? S.th : (S.reload ? S.N : 0);
+        S.tf=true;
+        break;
+      }
+    }
+    var w = hx(S.N), c = hx(S.cnt);
+    drawRegs(); renderAll(); hlCode(CODE_TAGS.isr);
+    if(overflow){
+      if(S.mode===2){
+        setStatus('<b>方式 2 · 自动重装中…</b> 紫色包裹正从 TH0 回到 TL0。','');
+        moveAlong('p_reload','reloadDot',520,function(){
+          setStatus('<b>溢出！TF0 = 1。</b> 硬件已把 TH0='+hex(S.th,2)+
+            ' 自动装回 TL0，TH0 保持不变 → 下次间隔仍是 <span class="mono">'+fmtT((mm-S.N)*tmc())+'</span>。','ok');
+          if(cb) cb();
+        });
+      } else if(S.reload){
+        setStatus('<b>溢出！TF0 = 1。</b> ISR 已手动重装 '+w+
+          ' → 两次间隔相同。CPU 响应中断时硬件自动清 TF0。','ok');
+        if(cb) cb();
+      } else {
+        setStatus('<b>溢出！TF0 = 1，但没有重装。</b> 计数器回到 0000H，下一次要数满 '+
+          mm+' 次（<span class="mono">'+fmtT(mm*tmc())+'</span>）才再溢出 —— 定时周期被毁掉了。','err');
+        if(cb) cb();
+      }
+    } else {
+      setStatus('<b>计数 +'+k+'。</b> 当前 '+c+
+        '，还需 '+(mm-S.cnt)+' 次到溢出；真实耗时 '+fmtT(k*tmc())+'。','');
+      if(cb) cb();
+    }
+  });
+}
+function step(n){ if(S.running) return; S.tf=false; oneTick(n); }
+function nearOverflow(){
+  if(S.running) return;
+  var left=M()-S.cnt;
+  if(left<=3){ oneTick(1); return; }
+  S.cnt=M()-3; S.tf=false; drawRegs(); renderAll();
+  setStatus('<b>已快进到差 3 次溢出。</b> 当前 '+hx(S.cnt)+
+    '，接下来单步把溢出瞬间慢放。','warn');
+}
+function stopRun(){
+  S.running=false; S.gen++; cancelAnimationFrame(S.raf); clearTimeout(S.raf); setButtons(false);
+  $('bRun').textContent='连续运行'; $('bRun').classList.remove('primary');
+  $('pulseDot').style.display='none'; $('reloadDot').style.display='none';
+}
+function runLoop(){
+  if(!S.running) return;
+  var left=M()-S.cnt;
+  var n = left>60 ? Math.max(1,Math.min(50,Math.floor(left/12))) : 1;
+  S.tf=false;
+  oneTick(n,function(){
+    if(!S.running) return;
+    var wait = (M()-S.cnt)>20 ? 70 : 320;   // 临近溢出自动慢放
+    S.raf=setTimeout(function(){ requestAnimationFrame(runLoop); },wait);
+  });
+}
+function toggleRun(){
+  if(S.running){ stopRun(); setStatus('<b>已暂停。</b> 当前计数 '+hx(S.cnt)+'。',''); return; }
+  if(!S.tr){ setStatus('<b>无法运行。</b> 先把 <span class="mono">TR0</span> 置 1。','warn'); return; }
+  S.running=true; setButtons(true);
+  $('bRun').disabled=false; $('bRun').textContent='暂停'; $('bRun').classList.add('primary');
+  setStatus('<b>连续运行中。</b> 远离溢出时快速跳进，临近溢出自动慢放，便于看清 TF0 与重装。','');
+  runLoop();
+}
+function calc1ms(){
+  if(S.running) stopRun();
+  var target=1e-3, need=Math.round(target*S.fosc/S.div), mm=M(), N=mm-need;
+  if(N<0){
+    setMode(1); mm=M(); N=mm-need;
+    setStatus('<b>当前方式装不下 1 ms。</b> 已自动切到方式 1；最长可定时 '+
+      fmtT(mm*tmc())+'。若仍不够，需软件计数多次溢出或用更低频率晶振。','warn');
+  } else {
+    setStatus('<b>已按 1 ms 反算初值。</b> N = '+mm+' − '+need+' = '+hex(N,mm>256?4:2)+
+      '，对应 TH0='+hex(S.th,2)+'、TL0='+hex(S.tl,2)+'。','ok');
+  }
+  splitN(N); S.fosc=parseFloat($('fosc').value); S.div=parseInt($('div').value,10);
+  S.N=rawN(); S.tf=false; S.ticks=0; S.ovf=0; resetCount(); renderAll();
+}
+function reset(){
+  if(S.running) stopRun();
+  S.gen++; S.tf=false; S.ticks=0; S.ovf=0; S.tr=true; S.reload=true;
+  S.fosc=12e6; S.div=12; S.smod=0;
+  $('fosc').value='12000000'; $('div').value='12'; $('smod').value='0';
+  setMode(1); splitN(0xFC18); S.N=rawN(); resetCount();
+  S.quizOn=false; $('quizBox').style.display='none'; $('bQuiz').textContent='先猜后播';
+  setStatus('<b>已复位。</b> 12 MHz / 12T / 方式 1 / 初值 0xFC18 → 1 ms。点「冲到溢出」慢放溢出瞬间。','');
+  renderAll();
+}
+
+/* ---------- 预测-验证 ---------- */
+function showQuiz(){
+  if(S.running) stopRun(); reset();
+  S.quizOn=true; S.qpick=-1;
+  $('quizBox').style.display='block'; $('bQuiz').textContent='退出预测';
+  var q=QUIZ[S.qidx%QUIZ.length];
+  $('qno').textContent=(S.qidx%QUIZ.length)+1;
+  $('qcode').textContent=q.code;
+  $('qtext').textContent=q.text;
+  $('qopts').innerHTML=q.opts.map(function(o,i){ return '<button class="qopt" data-i="'+i+'">'+o+'</button>'; }).join('');
+  Array.prototype.forEach.call(document.querySelectorAll('.qopt'),function(b){
+    b.onclick=function(){
+      S.qpick=parseInt(b.getAttribute('data-i'),10);
+      Array.prototype.forEach.call(document.querySelectorAll('.qopt'),function(x){x.classList.remove('on');});
+      b.classList.add('on');
+    };
+  });
+  $('qres').innerHTML='';
+  setStatus('<b>先猜后播。</b> 请让学生先选答案，再点「验证」播放对应演示。','');
+}
+function verify(){
+  var q=QUIZ[S.qidx%QUIZ.length], ok=(S.qpick===q.a);
+  $('qres').innerHTML=ok
+    ? '<span style="color:#2E8B8B">✓ 判断正确 —— 正在播放演示…</span>'
+    : '<span style="color:#C4342B">✗ 正确答案是「'+q.opts[q.a]+'」—— 正在播放演示…</span>';
+  q.demo(); S.qidx++;
+  setStatus('<b>'+q.why+'</b>','ok');
+  setTimeout(function(){ nearOverflow(); setTimeout(function(){ step(3); },520); },420);
+}
+
+/* ---------- 事件 ---------- */
+$('fosc').onchange=syncFromUI;
+$('div').onchange=syncFromUI;
+$('smod').onchange=syncFromUI;
+$('th').oninput=function(){ S.th=parseInt(this.value,10); S.N=rawN(); S.tf=false; resetCount(); renderAll(); };
+$('tl').oninput=function(){ S.tl=parseInt(this.value,10); S.N=rawN(); S.tf=false; resetCount(); renderAll(); };
+$('bTR').onclick=function(){ if(S.running) return; S.tr=!S.tr; syncSw(); renderAll();
+  setStatus(S.tr?'<b>TR0 = 1。</b> 闸门打开，每个机器周期计数器加 1。':'<b>TR0 = 0。</b> 闸门关闭，计数停止。',''); };
+$('bReload').onclick=function(){ if(S.running||S.mode===2) return; S.reload=!S.reload; syncSw(); renderAll();
+  setStatus(S.reload?'<b>ISR 已重装。</b> 两次溢出间隔相同；代价是 ISR 执行时间带来几个微秒的误差。':
+                    '<b>ISR 未重装。</b> 溢出后从 0000H 继续，第二次间隔约 '+fmtT(M()*tmc())+'。', S.reload?'ok':'err'); };
+$('bStep').onclick=function(){ step(1); };
+$('bTen').onclick=function(){ step(10); };
+$('bNear').onclick=nearOverflow;
+$('bRun').onclick=toggleRun;
+$('bCalc').onclick=calc1ms;
+$('bReset').onclick=reset;
+$('bQuiz').onclick=function(){ S.quizOn?reset():showQuiz(); };
+$('bVerify').onclick=verify;
+
+buildModes(); $('modeHint').textContent=MODES[S.mode].hint;
+syncSw(); S.N=rawN(); resetCount(); renderAll();
+</script>
+</body>
+</html>
