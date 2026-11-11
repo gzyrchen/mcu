@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8051 · C51 volatile：中断标志为何读不到 | 交互动画</title>
+<style>
+:root{
+  --bg:#EFE2C4; --panel:#F8EFDC; --panel2:#FBF6E9; --ink:#3A2E1F; --muted:#7A6A52;
+  --line:#C9B795; --blue:#1D5FA8; --deep:#002E63; --teal:#2E8B8B;
+  --purple:#7A4FA3; --red:#C4342B; --magenta:#B0105A; --amber:#C77B18;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);
+  font-family:"Microsoft YaHei UI","Microsoft YaHei","PingFang SC",sans-serif;}
+.wrap{width:min(96vw,1880px);margin:0 auto;
+  padding:clamp(10px,1vh,16px) clamp(14px,1.5vw,28px) clamp(8px,.9vh,14px);
+  min-height:100vh;display:flex;flex-direction:column;}
+header{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
+  border-bottom:2px solid var(--line);
+  padding-bottom:clamp(7px,.9vh,12px);margin-bottom:clamp(8px,1.1vh,14px)}
+header h1{font-size:clamp(20px,1.35vw,34px);margin:0;letter-spacing:.5px;color:var(--deep)}
+header .sub{font-size:clamp(12px,.78vw,19px);color:var(--muted)}
+header .tag{margin-left:auto;font-size:clamp(11px,.7vw,17px);color:var(--muted);border:1px solid var(--line);border-radius:14px;padding:4px 12px;background:var(--panel2)}
+.grid{display:grid;
+  grid-template-columns:clamp(300px,18vw,375px) minmax(0,1fr) clamp(310px,18.5vw,395px);
+  gap:clamp(12px,1.1vw,20px);align-items:start;align-content:center;flex:1 1 auto;}
+.col{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:clamp(10px,.8vw,15px) clamp(12px,.95vw,18px) clamp(10px,.9vw,16px);
+  min-height:clamp(460px,56vh,640px)}
+.col h2{font-size:clamp(14px,.82vw,20px);margin:0 0 6px;color:var(--deep);letter-spacing:.5px;display:flex;align-items:center;gap:8px}
+.col h2:before{content:"";width:4px;height:15px;background:var(--blue);border-radius:2px}
+.col h2.tight{margin-top:7px}
+.hint{font-size:clamp(11.5px,.67vw,16px);color:var(--muted);line-height:1.55;margin:0 0 8px}
+
+/* ---------- 左栏 ---------- */
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px}
+.mbtn{cursor:pointer;border:1px solid var(--line);background:var(--panel2);border-radius:7px;
+  padding:7px 3px 6px;text-align:center;font-family:inherit;transition:.15s;color:var(--ink)}
+.mbtn b{display:block;font-family:Consolas,monospace;font-size:clamp(11px,.66vw,15px);color:var(--mc);white-space:nowrap}
+.mbtn span{display:block;font-size:clamp(10.5px,.6vw,14px);color:var(--muted);margin-top:2px}
+.mbtn:hover{border-color:var(--mc)}
+.mbtn.on{background:#fff;border-color:var(--mc);box-shadow:0 0 0 2px var(--mc) inset;font-weight:700}
+.prow{display:grid;grid-template-columns:clamp(72px,5vw,96px) 1fr auto;gap:6px;align-items:center;
+  font-size:clamp(11.5px,.67vw,16px);margin-bottom:5px}
+.prow label{color:var(--muted);white-space:nowrap}
+.prow input[type=range]{width:100%;height:16px;accent-color:var(--blue);cursor:pointer}
+.prow .pv{font-family:Consolas,monospace;font-weight:700;color:var(--deep);min-width:52px;text-align:right;white-space:nowrap}
+.codebox{background:#2E2A22;color:#F3E9D2;border-radius:9px;padding:9px 11px 12px;
+  font-family:Consolas,"Courier New",monospace;font-size:clamp(11.5px,.72vw,17px);line-height:1.45;
+  max-height:270px;overflow:auto;white-space:pre;tab-size:2}
+.cline{display:block;border-left:3px solid transparent;padding-left:5px;margin-left:-8px;transition:.2s}
+.cline.on{background:rgba(143,211,244,.16);border-left-color:#8FD3F4}
+.k{color:#8FD3F4}.t{color:#F0B27A}.v{color:#D6E9A8}.cm{color:#9B8F77}.lit{color:#F19BB6}.fn{color:#F6D98A}
+.volkw{color:#F0B27A;font-weight:700}
+.oprow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-top:8px}
+button.act{cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--ink);
+  border-radius:7px;padding:clamp(6px,.8vh,10px) 4px;font-size:clamp(11px,.65vw,15px);font-family:inherit;transition:.15s}
+button.act:hover{background:#fff;border-color:var(--blue);color:var(--deep)}
+button.act.primary{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700}
+button.act.primary:hover{background:var(--deep)}
+button.act.warn{color:#8E2A22;border-color:#E0B4AE}
+button.act:disabled{opacity:.42;cursor:not-allowed;transform:none}
+button.act.wide{grid-column:1/-1}
+
+/* ---------- 中栏 ---------- */
+.stage-col{padding:12px 12px 10px}
+.stage-title{font-size:clamp(13px,.78vw,19px);color:var(--deep);font-weight:700;margin:0 0 5px 6px;display:flex;justify-content:space-between;gap:10px}
+.stage-title em{font-style:normal;font-size:clamp(11px,.65vw,15px);color:var(--muted);font-weight:400}
+svg#scene{width:100%;height:auto;display:block;background:var(--panel2);border:1px solid var(--line);border-radius:9px;fill:var(--ink)}
+svg text{font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif}
+.mono{font-family:Consolas,"Courier New",monospace}
+.zs{font-size:11.5px;fill:var(--muted)}
+.flow{fill:none;stroke:#B7A480;stroke-width:2.4;stroke-linejoin:round}
+.track{fill:none;stroke:none}
+.big{font-family:Consolas,"Courier New",monospace;font-weight:700}
+.pulse{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.42}}
+.status{margin-top:7px;background:var(--panel2);border:1px solid var(--line);border-left:5px solid var(--blue);
+  border-radius:8px;padding:7px 12px;font-size:clamp(12px,.7vw,16px);line-height:1.5;min-height:50px;}
+.status b{color:var(--deep)}
+.status.err{border-left-color:var(--red);color:#8E2A22}
+.status.ok{border-left-color:var(--teal)}
+.status.warn{border-left-color:var(--amber)}
+.legend{display:flex;flex-wrap:wrap;gap:3px 18px;margin-top:6px;font-size:clamp(11px,.65vw,15px);color:var(--muted);line-height:1.55}
+.legend > span{display:block;flex:1 1 45%;min-width:0}
+.legend > span.wide{flex:1 1 100%}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin:0 5px 0 0;vertical-align:middle}
+.legend b{color:var(--ink);white-space:nowrap}
+
+/* ---------- 右栏 ---------- */
+.kv{display:grid;grid-template-columns:clamp(80px,5.2vw,100px) 1fr;gap:3px 8px;font-size:clamp(11.5px,.68vw,16px);margin:0 0 5px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;font-weight:600;word-break:break-all}
+.calc{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin-bottom:6px}
+.calc .bigv{font-family:Consolas,monospace;font-size:clamp(16px,1vw,24px);font-weight:700;color:var(--deep);line-height:1.2}
+.calc .lb{font-size:clamp(11px,.65vw,15px);color:var(--muted)}
+.calc .fm{font-family:Consolas,monospace;font-size:clamp(10.8px,.63vw,14px);color:var(--muted);margin-top:3px;line-height:1.45}
+.calc .fm+.fm{margin-top:1px}
+.mtx{width:100%;border-collapse:collapse;font-size:clamp(11px,.64vw,15px);margin-top:4px}
+.mtx th,.mtx td{border-bottom:1px solid var(--line);padding:3px 4px;text-align:center}
+.mtx th{color:var(--muted);font-weight:600}
+.mtx td:first-child,.mtx th:first-child{text-align:left;white-space:nowrap}
+.mtx .bad{color:var(--red);font-weight:700}
+.mtx .good{color:var(--teal);font-weight:700}
+.mtx .cur{background:#E5EFFA;outline:2px solid var(--blue);outline-offset:-2px}
+.note{font-size:clamp(11px,.64vw,15px);color:var(--muted);line-height:1.5;margin:5px 0 7px}
+details{margin-top:7px;border-top:1px dashed var(--line);padding-top:6px}
+summary{cursor:pointer;font-size:clamp(11.5px,.68vw,16px);font-weight:700;color:var(--deep);outline:none}
+details ol{margin:5px 0 0;padding-left:18px;font-size:clamp(11px,.64vw,15px);line-height:1.36;color:var(--ink)}
+details li{margin-bottom:1px}
+.quiz{background:#FFF8E8;border:1px solid #E0C98F;border-radius:9px;padding:10px 11px;font-size:clamp(11.5px,.68vw,16px);line-height:1.55;margin-bottom:8px}
+.quiz .qcode{font-family:Consolas,monospace;font-size:clamp(11px,.64vw,15px);background:#2E2A22;color:#F3E9D2;padding:6px 8px;border-radius:6px;margin:6px 0;white-space:pre-wrap}
+.qopts{display:flex;flex-direction:column;gap:4px;margin:6px 0}
+.qopt{cursor:pointer;text-align:left;border:1px solid var(--line);background:var(--panel2);border-radius:6px;
+  padding:5px 8px;font-family:inherit;font-size:clamp(11px,.64vw,15px);color:var(--ink)}
+.qopt.on{background:#DCE9F7;border-color:var(--blue);font-weight:700}
+.qopt:hover{border-color:var(--blue)}
+.quiz .res{font-weight:700;margin-top:5px;font-size:clamp(11px,.64vw,15px)}
+footer{margin-top:8px;border-top:1px solid var(--line);padding-top:6px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;font-size:clamp(11px,.65vw,15px);color:var(--muted);flex:none}
+
+/* ================= 自适应：1920×1080 为设计锚点 ================= */
+@media (min-width:2100px){ .wrap{width:min(92vw,2500px)} }
+@media (max-width:1500px){
+  .grid{grid-template-columns:clamp(265px,20vw,320px) minmax(0,1fr) clamp(265px,21vw,330px)}
+  .legend > span{flex:1 1 100%}
+}
+@media (max-width:1400px){
+  .grid{grid-template-columns:1fr 1fr;align-content:start}
+  .stage-col{grid-column:1/-1;order:-1}
+  .grid > .col:last-child{grid-column:auto;min-height:0}
+  .grid > .col:last-child .kv{grid-template-columns:110px 1fr}
+  .legend > span{flex:1 1 45%}
+  .col{min-height:0}
+  .codebox{max-height:230px}
+}
+@media (max-width:820px){
+  .wrap{width:94vw;min-height:0}
+  .grid{grid-template-columns:1fr;align-content:start}
+  .grid > .col:last-child{grid-column:auto}
+  .stage-col{order:-1}
+  header .tag{display:none} header .sub{display:none}
+  .legend > span{flex:1 1 100%}
+  footer span:last-child{display:none}
+}
+@media (max-width:560px){
+  .modes{grid-template-columns:1fr 1fr}
+  .oprow{grid-template-columns:1fr 1fr}
+  .codebox{max-height:200px}
+}
+@media (max-height:820px){
+  .wrap{min-height:0}
+  .grid{align-content:start}
+  .col{min-height:0}
+  .codebox{max-height:190px}
+  footer{margin-top:6px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>C51 · <span style="font-family:Consolas,monospace">volatile</span>：中断改了变量，主循环为何看不见</h1>
+    <span class="sub">8051 单片机原理与应用 · 交互动画 03</span>
+    <span class="tag">Keil C51 ｜ 编译器优化 ｜ 单文件离线可用</span>
+  </header>
+
+  <main class="grid">
+    <!-- ================= 左栏：配置与代码 ================= -->
+    <section class="col">
+      <h2>① 变量怎么声明</h2>
+      <div class="modes" id="modes"></div>
+      <p class="hint" id="volHint"></p>
+
+      <h2>② 编译优化等级</h2>
+      <div class="prow"><label>优化等级</label>
+        <input type="range" id="opt" min="0" max="3" step="1" value="3"><span class="pv" id="pvOpt">LEVEL 3</span></div>
+      <p class="hint" id="optHint"></p>
+
+      <h2 class="tight">③ C51 源码</h2>
+      <div class="codebox" id="codebox"></div>
+
+      <h2 class="tight">④ 操作</h2>
+      <div class="oprow">
+        <button class="act primary" id="bIRQ">触发 T0 中断</button>
+        <button class="act" id="bStep">主循环走一轮</button>
+        <button class="act" id="bRun">连续运行</button>
+        <button class="act" id="bAB">A / B 对照演示</button>
+        <button class="act" id="bQuiz">先猜后播</button>
+        <button class="act warn wide" id="bReset">复 位</button>
+      </div>
+    </section>
+
+    <!-- ================= 中栏：编译器视角 + 运行期 ================= -->
+    <section class="col stage-col">
+      <div class="stage-title">
+        <span>编译期推断 → 运行期数据流</span>
+        <em>C 级行为示意 · 非汇编</em>
+      </div>
+      <svg id="scene" viewBox="0 0 900 500" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#B7A480"/></marker>
+          <marker id="arwB" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#1D5FA8"/></marker>
+          <marker id="arwR" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#C4342B"/></marker>
+          <filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+
+        <!-- ===== ① 编译期 ===== -->
+        <text x="24" y="24" font-size="12" font-weight="700" fill="#7A6A52">① 编译期 · 编译器只分析 main() 的控制流</text>
+        <g>
+          <rect x="24" y="34" width="252" height="106" rx="9" fill="#DCE9F7" stroke="#1D5FA8" stroke-width="2"/>
+          <text x="38" y="55" font-size="12" font-weight="700" fill="#1D5FA8">源码 · main()</text>
+          <text x="38" y="80" class="mono" font-size="13" fill="#002E63">while(!flag);</text>
+          <text x="38" y="101" class="zs" font-size="11.5" id="cSrc1">flag 初值 = 0，循环体内没有写它</text>
+          <text x="38" y="120" class="zs" font-size="11.5">编译器认为：这个条件永不改变</text>
+        </g>
+        <path class="flow" d="M276 87 L300 87" marker-end="url(#arw)"/>
+        <g>
+          <rect x="302" y="34" width="292" height="106" rx="9" fill="#F5EEDD" stroke="#C9B795" stroke-width="1.8"/>
+          <text x="316" y="55" font-size="12" font-weight="700" fill="#8C7A5C">编译器视角</text>
+          <text x="316" y="77" class="zs" font-size="11.5">· main() 里没有任何语句给 flag 赋值</text>
+          <text x="316" y="97" class="zs" font-size="11.5">· ISR 由硬件矢量跳转，main() 不调用它</text>
+          <text x="316" y="117" class="zs" font-size="11.5">· 因此允许把「读内存」提到循环之外</text>
+          <text x="316" y="134" class="zs" font-size="11" id="cView">优化等级 3 · 循环不变量外提已开启</text>
+        </g>
+        <path class="flow" d="M594 87 L618 87" marker-end="url(#arw)"/>
+        <g>
+          <rect x="620" y="34" width="256" height="106" rx="9" fill="#F8DFDC" stroke="#C4342B" stroke-width="2" id="eqBox"/>
+          <text x="634" y="55" font-size="12" font-weight="700" fill="#8E2A22" id="eqTitle">等价改写（示意）· 危险</text>
+          <text x="634" y="80" class="mono" font-size="11.5" fill="#3A2E1F" id="eqL1">tmp = flag;</text>
+          <text x="634" y="99" class="mono" font-size="11.5" fill="#3A2E1F" id="eqL2">while(!tmp);</text>
+          <text x="634" y="121" class="zs" font-size="11.5" id="eqL3">只读一次，之后不再访问 0x30</text>
+        </g>
+
+        <!-- ===== ② 运行期 ===== -->
+        <text x="24" y="172" font-size="12" font-weight="700" fill="#7A6A52">② 运行期 · 中断写内存，主循环每轮判定是否重新读</text>
+
+        <!-- 主循环 -->
+        <g>
+          <rect x="24" y="186" width="380" height="100" rx="9" fill="#E9F2FA" stroke="#1D5FA8" stroke-width="2" id="mainBox"/>
+          <text x="40" y="208" font-size="12.5" font-weight="700" fill="#1D5FA8" id="sMainTitle">主循环 main() · 第 0 轮判定</text>
+          <text x="40" y="232" class="mono" font-size="13" fill="#002E63">while(!flag);</text>
+          <circle cx="52" cy="258" r="10" fill="#C9B795" id="cpuLamp"/>
+          <text x="70" y="262" class="zs" font-size="11.5" id="sCpu">CPU 本次持有 flag = 0 → 继续等</text>
+        </g>
+
+        <!-- ISR -->
+        <g>
+          <rect x="496" y="186" width="380" height="100" rx="9" fill="#E9DFF3" stroke="#7A4FA3" stroke-width="2" id="isrBox"/>
+          <text x="512" y="208" font-size="12.5" font-weight="700" fill="#7A4FA3">T0_ISR · interrupt 1</text>
+          <text x="512" y="232" class="mono" font-size="13" fill="#3A2E1F">flag = 1;</text>
+          <text x="512" y="255" class="zs" font-size="11.5" id="sIsr">硬件矢量 000BH 跳转，等待触发</text>
+          <text x="512" y="275" class="zs" font-size="11">ET0=1 且 EA=1 时才会响应</text>
+        </g>
+
+        <!-- 通道（可见线） -->
+        <path id="chWrite" class="flow" d="M686 286 L686 302 L530 302 L530 314" stroke="#7A4FA3" stroke-width="2.6" marker-end="url(#arw)"/>
+        <path id="chRead" class="flow" d="M370 314 L370 302 L214 302 L214 286" stroke="#1D5FA8" stroke-width="2.6" marker-end="url(#arwB)"/>
+        <path id="p_write" class="track" d="M686 286 L686 302 L530 302 L530 314"/>
+        <path id="p_read" class="track" d="M370 314 L370 302 L214 302 L214 286"/>
+        <text x="164" y="334" class="zs" font-size="11" id="sReadLb">读通道 · 每轮重读</text>
+        <text x="600" y="334" class="zs" font-size="11" id="sWriteLb">写通道</text>
+        <g id="cutMark" transform="translate(292,302)" style="display:none">
+          <circle r="11" fill="#F8DFDC" stroke="#C4342B" stroke-width="2"/>
+          <path d="M-5,-5 L5,5 M5,-5 L-5,5" stroke="#C4342B" stroke-width="2.4"/>
+        </g>
+        <g id="writeDot" transform="translate(686,286)" filter="url(#glow)" style="display:none">
+          <circle r="8" fill="#FFFFFF" stroke="#7A4FA3" stroke-width="2.5"/></g>
+        <g id="readDot" transform="translate(370,314)" filter="url(#glow)" style="display:none">
+          <circle r="8" fill="#FFFFFF" stroke="#1D5FA8" stroke-width="2.5"/></g>
+
+        <!-- 内存 -->
+        <g>
+          <rect x="330" y="314" width="240" height="78" rx="9" fill="#F0E7D2" stroke="#8C7A5C" stroke-width="2" id="ramBox"/>
+          <text x="450" y="336" text-anchor="middle" font-size="12" fill="#8C7A5C">片内 RAM · data 0x30 · flag</text>
+          <text x="450" y="376" text-anchor="middle" class="big" font-size="36" fill="#3A2E1F" id="sRam">0</text>
+        </g>
+
+        <!-- ===== ③ 结局 ===== -->
+        <text x="24" y="418" font-size="12" font-weight="700" fill="#7A6A52">③ 判定结果</text>
+        <g>
+          <rect x="24" y="426" width="276" height="48" rx="9" fill="#F5EEDD" stroke="#C9B795" stroke-width="1.6"/>
+          <text x="38" y="444" class="zs" font-size="11.5">已判定轮数 / 主循环状态</text>
+          <text x="38" y="466" class="big" font-size="17" fill="#002E63" id="sRounds">0 轮 · 等待中断</text>
+        </g>
+        <g>
+          <rect x="312" y="426" width="276" height="48" rx="9" fill="#F5EEDD" stroke="#C9B795" stroke-width="1.6"/>
+          <text x="326" y="444" class="zs" font-size="11.5">P1 LED（退出循环后才翻转）</text>
+          <text x="326" y="466" class="big" font-size="17" fill="#3A2E1F" id="sLed">灭</text>
+        </g>
+        <g>
+          <rect x="600" y="426" width="276" height="48" rx="9" fill="#F5EEDD" stroke="#C9B795" stroke-width="1.6" id="verdictBox"/>
+          <text x="614" y="444" class="zs" font-size="11.5">结局</text>
+          <text x="614" y="466" class="big" font-size="17" fill="#3A2E1F" id="sVerdict">尚未触发中断</text>
+        </g>
+        <text x="24" y="493" class="zs" font-size="11" id="sFoot">提示：先点「触发 T0 中断」让 ISR 写内存，再点「主循环走一轮」看它能否读到新值。</text>
+      </svg>
+      <div class="status" id="status"><b>准备就绪。</b> 当前为「不加 volatile + 优化等级 3」——先触发中断，再让主循环走几轮，看它是否卡死；然后加上 volatile 重来一次。</div>
+      <div class="legend">
+        <span><i style="background:#7A4FA3"></i><b>紫色包裹</b> = ISR 执行 <span class="mono">flag = 1</span>，把新值写进片内 RAM 0x30</span>
+        <span><i style="background:#1D5FA8"></i><b>蓝色包裹</b> = 主循环重新从内存读一次 flag；通道被剪断时读不到新值</span>
+        <span class="wide"><i style="background:#8C7A5C"></i>类比：主循环拿着一份<b>复印的便签</b>，中断改的是墙上原件。真实 8051 <b>没有数据缓存</b>——问题出在编译器把那次内存读取提到了循环之外，生成的代码根本不再访问 0x30，不是 CPU 拿着旧缓存。</span>
+      </div>
+    </section>
+
+    <!-- ================= 右栏：判定矩阵与边界 ================= -->
+    <section class="col">
+      <div id="quizBox" class="quiz" style="display:none">
+        <b>先猜后播 · 第 <span id="qno">1</span> 题</b>
+        <div class="qcode" id="qcode"></div>
+        <div id="qtext"></div>
+        <div class="qopts" id="qopts"></div>
+        <button class="act primary" id="bVerify" style="width:100%;margin-top:4px">验 证</button>
+        <div class="res" id="qres"></div>
+      </div>
+
+      <h2>当前配置会怎样</h2>
+      <div class="calc" id="verdictCard">
+        <div class="lb">优化等级 <span id="vOpt">3</span> · <span id="vVol">未加 volatile</span></div>
+        <div class="bigv" id="vBig">主循环会卡死</div>
+        <div class="fm" id="vWhy">编译器允许把读内存提到循环外；中断改了 0x30，主循环却不再去看。</div>
+      </div>
+
+      <h2 class="tight">优化等级 × 变量声明</h2>
+      <table class="mtx">
+        <thead><tr><th>等级</th><th>普通变量</th><th>volatile</th></tr></thead>
+        <tbody id="mtxBody"></tbody>
+      </table>
+      <p class="note" id="mtxNote"></p>
+
+      <dl class="kv" id="kv"></dl>
+
+      <details open>
+        <summary>比喻的边界 · 六个易错点</summary>
+        <ol>
+          <li><b>不是 CPU 缓存陈旧。</b>传统 8051 没有数据 cache。症结是编译器把「读 0x30」这条访问移出循环或判定为恒值，生成的代码压根不再读内存；错误发生在<b>编译期</b>。</li>
+          <li><b>不是「必然」卡死。</b>C 标准只保证 <span class="mono">volatile</span> 的语义；对普通变量，编译器<b>允许</b>假定没有程序之外的修改。是否真的优化、优化到什么程度，取决于 Keil Cx51 版本、优化等级与代码形态。等级 0 / 1 常「碰巧能跑」，但代码依然不正确。</li>
+          <li><b>volatile 不保证原子性。</b>C51 的 <span class="mono">int</span> 是 16 位，8 位内核要分两字节读；中断插在中间会读到<b>撕裂值</b>。<span class="mono">flag++</span> 是读—改—写三步，即便 8 位也可能丢更新。多字节共享量或自增操作仍需关中断／临界区。</li>
+          <li><b>volatile 不是内存屏障。</b>它只要求对该对象每次真实访问、且不删不合并；不保证不同 <span class="mono">volatile</span> 对象之间的相对顺序，也不保护其它无关变量，不能当同步原语用。</li>
+          <li><b>SFR 不必再加。</b>REG51.H 中由 <span class="mono">sfr</span> / <span class="mono">sbit</span> 定义的对象由编译器特殊处理，天然每次真实读写。只有自己用指针映射的硬件寄存器、以及 ISR 与 main 共享的普通变量才需要显式写 volatile。</li>
+          <li><b>有代价。</b>volatile 禁止相关优化，频繁访问会多出读／写内存动作，在 8051 上是几个机器周期量级。正确性优先，但不必给所有变量都加。</li>
+        </ol>
+      </details>
+
+      <details>
+        <summary>哪些对象必须加 volatile</summary>
+        <ol>
+          <li><b>ISR 与主循环共享的标志</b>：本页的 <span class="mono">flag</span>；反向（main 写、ISR 读）同理。</li>
+          <li><b>硬件会自行改动的寄存器</b>：用绝对地址指针访问的串口／定时器状态寄存器等。</li>
+          <li><b>多任务／RTOS 共享量</b>：被另一执行流修改且无法被编译器看见的对象。</li>
+          <li>顺带一提：<span class="mono">const</span> 管「本程序不改」，<span class="mono">volatile</span> 管「别人会改」，两者可以叠加（如只读状态寄存器）。</li>
+        </ol>
+      </details>
+
+      <details>
+        <summary>这张图对应哪些考点</summary>
+        <ol>
+          <li>解释「调试时正常、开优化后死机」「单步能过、全速卡住」这类典型现场故障。</li>
+          <li>区分「编译期优化」与「运行期竞态」：前者靠 volatile，后者靠临界区。</li>
+          <li>C51 数据类型位宽：<span class="mono">int</span> 为 16 位，多字节访问非原子。</li>
+          <li>优化等级是编译选项，不改变源码；同一份 .c 在不同等级下行为可能不同。</li>
+          <li>图中的 <span class="mono">tmp = flag; while(!tmp);</span> 是<b>C 级等价行为示意</b>，用来说明「只读一次内存」的后果，并非 Keil Cx51 生成的汇编或机器码；C51 课不要求读汇编。</li>
+        </ol>
+      </details>
+    </section>
+  </main>
+
+  <footer>
+    <span>8051 单片机原理与应用 · C51 volatile 交互演示 · 单 HTML 文件，无外部依赖，可离线投影或发给学生</span>
+    <span>视觉规范：米黄 #EFE2C4 · 深蓝 #002E63</span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+var OPT = [
+  {lv:0, name:'0 · 不优化', hint:'等级 0：编译器基本照源码逐句生成，每轮都会读一次 0x30。注意——「能跑」只是没触发优化，源码仍然有缺陷。'},
+  {lv:1, name:'1 · 低级', hint:'等级 1：只做局部整理，通常仍保留每轮的内存读取，但 C 标准并不保证这一点。'},
+  {lv:2, name:'2 · 中级', hint:'等级 2：循环不变量外提开启。main() 内无人写 flag，编译器允许只读一次 → 普通变量下常见死循环。'},
+  {lv:3, name:'3 · 高级', hint:'等级 3：更激进的公共子表达式消除与外提。普通变量下读内存通道被剪断，中断改了也没用。'}
+];
+var QUIZ = [
+  {code:'优化等级 0 · 不加 volatile\nwhile(!flag);  ← ISR 里 flag = 1',
+   text:'触发中断后，主循环能退出吗？这段代码算正确吗？',
+   opts:['能退出，代码正确','能退出，但代码仍不正确','不能退出'], a:1,
+   why:'等级 0 没做循环不变量外提，所以碰巧能退出；换成等级 2/3 或换编译器版本就可能卡死，源码缺陷没有消失。',
+   demo:function(){ setVol(false); $('opt').value=0; syncFromUI(); }},
+  {code:'volatile unsigned int cnt;\nvoid T0_ISR(void) interrupt 1 { cnt++; }',
+   text:'加了 volatile，16 位变量在中断里自增就安全了吗？',
+   opts:['安全，volatile 保证原子','不安全，读—改—写仍可被打断','不安全，volatile 对 int 无效'], a:1,
+   why:'volatile 只保证每次真实访问 0x30 这类地址，不把「读—改—写」三步变成原子操作；16 位还要分两字节读，可能出现撕裂值。',
+   demo:function(){ setVol(true); $('opt').value=3; syncFromUI(); }},
+  {code:'sbit LED = P1^0;\nunsigned char flag;  // ISR 与主循环共享',
+   text:'下面哪个对象需要写 volatile？',
+   opts:['LED（sbit 定义的 SFR 位）','flag（共享标志）','两个都要'], a:1,
+   why:'sfr / sbit 由编译器特殊处理，天然每次真实读写；普通全局变量被 ISR 异步修改，才必须显式声明 volatile。',
+   demo:function(){ setVol(true); $('opt').value=3; syncFromUI(); }}
+];
+
+var S = {vol:false, opt:3, fired:false, ram:0, cpu:0, rounds:0, exited:false,
+  running:false, gen:0, raf:0, busy:false, ab:false,
+  quizOn:false, qidx:0, qpick:-1, isrHot:false};
+var $ = function(id){ return document.getElementById(id); };
+var freshRead = function(){ return S.vol || S.opt < 2; };   // 每轮是否重新读内存
+var danger = function(){ return !freshRead(); };
+
+/* ---------- 左栏构建 ---------- */
+function buildModes(){
+  $('modes').innerHTML =
+    '<button class="mbtn'+(S.vol?'':' on')+'" data-v="0" style="--mc:#C4342B">'+
+      '<b>unsigned char</b><span>普通变量 · 危险</span></button>'+
+    '<button class="mbtn'+(S.vol?' on':'')+'" data-v="1" style="--mc:#2E8B8B">'+
+      '<b>volatile uchar</b><span>每次真实访问 · 安全</span></button>';
+  Array.prototype.forEach.call(document.querySelectorAll('.mbtn'), function(b){
+    b.onclick=function(){ setVol(b.getAttribute('data-v')==='1'); };
+  });
+}
+function setVol(v){
+  if(S.busy) return;
+  S.vol=v; resetRun(); renderAll();
+  setStatus(v
+    ? '<b>已加 volatile。</b> 编译器必须对 <span class="mono">flag</span> 每次都真实读内存；中断把 0x30 改成 1 之后，主循环下一轮就能看见。'
+    : '<b>未加 volatile。</b> 优化等级 2 及以上时，编译器允许只读一次内存——这就是「调试正常、开优化就死」的根源。',
+    v ? 'ok' : (danger()?'err':'warn'));
+}
+function syncFromUI(){
+  S.opt=parseInt($('opt').value,10);
+  resetRun(); renderAll();
+  setStatus('<b>优化等级 '+S.opt+'（'+OPT[S.opt].name+'）。</b> '+OPT[S.opt].hint,
+            danger()?'err':'');
+}
+
+/* ---------- C51 代码 ---------- */
+var TAGS={decl:'decl', isr:'isr', wait:'wait', led:'led'};
+function codeLines(){
+  var L=[], add=function(x,tag){ L.push({t:x,tag:tag}); };
+  add('<span class="cm">/* 主循环等待 T0 中断置位标志 */</span>','');
+  add((S.vol?'<span class="volkw">volatile</span> ':'')+'<span class="k">unsigned char</span> <span class="v">flag</span> = <span class="lit">0</span>;',TAGS.decl);
+  add('&nbsp;','');
+  add('<span class="k">void</span> <span class="fn">T0_ISR</span>(<span class="k">void</span>) <span class="k">interrupt</span> <span class="lit">1</span> {',TAGS.isr);
+  add('  <span class="v">flag</span> = <span class="lit">1</span>;  <span class="cm">// 硬件异步写入</span>',TAGS.isr);
+  add('}','');
+  add('&nbsp;','');
+  add('<span class="k">void</span> <span class="fn">main</span>(<span class="k">void</span>){','');
+  add('  Timer0_Init();  EA = <span class="lit">1</span>;  ET0 = <span class="lit">1</span>;','');
+  add('  <span class="k">while</span>(!<span class="v">flag</span>);  <span class="cm">// 等中断</span>',TAGS.wait);
+  add('  P1 ^= <span class="lit">0x01</span>;  <span class="cm">// 退出后才翻转 LED</span>',TAGS.led);
+  add('}','');
+  return L;
+}
+function hlCode(tag){ renderCode(tag); }
+function renderCode(hl){
+  $('codebox').innerHTML=codeLines().map(function(x){
+    return '<span class="cline'+(hl&&x.tag===hl?' on':'')+'">'+x.t+'</span>';
+  }).join('');
+}
+
+/* ---------- 主渲染 ---------- */
+function renderAll(){
+  var fr=freshRead(), dg=danger();
+  // 左栏
+  $('pvOpt').textContent='LEVEL '+S.opt;
+  $('optHint').textContent=OPT[S.opt].hint;
+  $('volHint').textContent=S.vol
+    ? 'volatile 通知编译器：该对象可能被程序控制流之外改动，每次访问都必须真实读写，不得删除、合并或移出循环。'
+    : '普通变量：编译器按 C 标准可以假定「程序里没人写它，值就不变」，于是省略循环内重复的读内存动作。';
+  buildModes(); renderCode();
+
+  // 编译期卡
+  $('cView').textContent='优化等级 '+S.opt+' · '+(S.opt>=2?'循环不变量外提已开启':'尚未开启循环不变量外提');
+  $('cSrc1').textContent='flag 初值 = 0，循环体内没有写它';
+  $('eqBox').setAttribute('fill', dg?'#F8DFDC':'#E3F0E8');
+  $('eqBox').setAttribute('stroke', dg?'#C4342B':'#2E8B8B');
+  $('eqTitle').setAttribute('fill', dg?'#8E2A22':'#1E6157');
+  $('eqTitle').textContent='等价改写（示意）· '+(dg?'危险':'安全');
+  $('eqL1').textContent = dg ? 'tmp = flag;' : 'while(!flag);';
+  $('eqL2').textContent = dg ? 'while(!tmp);' : '  /* 每轮重新读 0x30 */';
+  $('eqL3').textContent = dg ? '只读一次，之后不再访问 0x30'
+                             : (S.vol?'volatile 强制每次真实读内存':'本等级未做该优化（不保证）');
+
+  // 运行期
+  $('sRam').textContent=S.ram;
+  $('sRam').setAttribute('fill', S.ram?'#C4342B':'#3A2E1F');
+  $('ramBox').setAttribute('stroke', S.ram?'#C4342B':'#8C7A5C');
+  $('sMainTitle').textContent='主循环 main() · 第 '+S.rounds+' 轮判定';
+  $('sCpu').textContent='CPU 本次持有 flag = '+S.cpu+' → '+(S.exited?'退出循环':'继续等');
+  $('cpuLamp').setAttribute('fill', S.cpu?'#2E8B8B':(dg?'#C4342B':'#C9B795'));
+  $('sIsr').textContent=S.fired?'已执行 · flag = 1 写入 0x30':'硬件矢量 000BH 跳转，等待触发';
+  $('isrBox').setAttribute('stroke',S.isrHot?'#C4342B':'#7A4FA3');
+  $('sReadLb').textContent=fr?'读通道 · 每轮重读':'读通道 · 已被剪断';
+  $('sReadLb').setAttribute('fill',fr?'#1D5FA8':'#C4342B');
+  $('chRead').setAttribute('stroke',fr?'#1D5FA8':'#C4342B');
+  $('chRead').setAttribute('stroke-dasharray',fr?'':'6 5');
+  $('chRead').setAttribute('opacity',fr?'1':'.55');
+  $('chRead').setAttribute('marker-end',fr?'url(#arwB)':'url(#arwR)');
+  $('cutMark').style.display=dg?'':'none';
+  $('chWrite').setAttribute('stroke',S.fired?'#7A4FA3':'#B7A480');
+  $('sWriteLb').setAttribute('fill',S.fired?'#7A4FA3':'#7A6A52');
+
+  // 结局
+  $('sRounds').textContent=S.rounds+' 轮 · '+(S.exited?'已退出':(S.fired&&dg?'卡死中':'等待中断'));
+  $('sRounds').setAttribute('fill',S.fired&&dg&&!S.exited?'#C4342B':'#002E63');
+  $('sLed').textContent=S.exited?'亮 ★':'灭';
+  $('sLed').setAttribute('fill',S.exited?'#C77B18':'#3A2E1F');
+  var vb=$('verdictBox'), vt=$('sVerdict');
+  if(S.exited){ vb.setAttribute('fill','#E3F0E8'); vb.setAttribute('stroke','#2E8B8B');
+    vt.setAttribute('fill','#1E6157'); vt.textContent='✓ 已退出循环'; }
+  else if(S.fired&&dg){ vb.setAttribute('fill','#F8DFDC'); vb.setAttribute('stroke','#C4342B');
+    vt.setAttribute('fill','#8E2A22'); vt.textContent='✕ 死循环 · 永远不退出'; }
+  else { vb.setAttribute('fill','#F5EEDD'); vb.setAttribute('stroke','#C9B795');
+    vt.setAttribute('fill','#3A2E1F'); vt.textContent=S.fired?'等待主循环下一轮':'尚未触发中断'; }
+  $('sFoot').textContent=S.exited
+    ? 'P1 ^= 0x01 已执行。注意：volatile 保证「每次真实访问」，不保证原子性或临界区互斥。'
+    : (S.fired&&dg
+       ? '内存里明明是 1，CPU 却始终拿循环前读到的 0 —— 改源码加 volatile，或把优化降到 0/1 再试。'
+       : '提示：先点「触发 T0 中断」让 ISR 写内存，再点「主循环走一轮」看它能否读到新值。');
+
+  // 右栏
+  $('vOpt').textContent=S.opt;
+  $('vVol').textContent=S.vol?'已加 volatile':'未加 volatile';
+  $('vBig').textContent=fr?'主循环能退出':'主循环会卡死';
+  $('vBig').style.color=fr?'#2E8B8B':'#C4342B';
+  $('vWhy').textContent=fr
+    ? (S.vol?'volatile 强制每轮真实读 0x30；ISR 写入后下一轮判定看到 1，退出循环。'
+             :'本优化等级未把读内存提出循环，所以能退出——但源码缺陷仍在，换个等级或版本就可能失效。')
+    : '编译器允许把读内存提到循环外；中断改了 0x30，主循环却不再去看。';
+  renderMatrix();
+  $('kv').innerHTML=
+    '<dt>变量声明</dt><dd class="mono">'+(S.vol?'volatile ':'')+'unsigned char flag;</dd>'+
+    '<dt>每轮重读</dt><dd>'+(fr?'<span style="color:#2E8B8B">是</span>':'<span style="color:#C4342B">否（读一次即缓存判定）</span>')+'</dd>'+
+    '<dt>内存 0x30</dt><dd class="mono">'+S.ram+'　·　CPU 持有 '+S.cpu+'</dd>'+
+    '<dt>中断状态</dt><dd>'+(S.fired?'已触发并写回':'未触发')+'　·　累计 '+S.rounds+' 轮</dd>';
+}
+function renderMatrix(){
+  var rows='';
+  OPT.forEach(function(o){
+    var a = o.lv<2, b = true;
+    var cell=function(ok){ return ok?'<span class="good">✓ 能退出</span>':'<span class="bad">✕ 卡死</span>'; };
+    rows+='<tr><td>'+o.name+'</td>'+
+      '<td class="'+(!S.vol&&S.opt===o.lv?'cur':'')+'">'+cell(a)+'</td>'+
+      '<td class="'+(S.vol&&S.opt===o.lv?'cur':'')+'">'+cell(b)+'</td></tr>';
+  });
+  $('mtxBody').innerHTML=rows;
+  $('mtxNote').innerHTML='蓝框为当前配置。<b>「能退出」不等于代码正确</b>：等级 0 / 1 只是没做这项优化，'+
+    'C 标准允许编译器在更高等级或更换版本后改变行为；只有 <span class="mono">volatile</span> 给出语言层面的保证。';
+}
+
+/* ---------- 状态栏与按钮 ---------- */
+function setStatus(html,cls){ var s=$('status'); s.className='status'+(cls?' '+cls:''); s.innerHTML=html; }
+function setButtons(dis){
+  ['bIRQ','bStep','bAB','bQuiz','opt'].forEach(function(id){ $(id).disabled=dis; });
+  Array.prototype.forEach.call(document.querySelectorAll('.mbtn'),function(b){ b.disabled=dis; });
+}
+function resetRun(){
+  S.fired=false; S.ram=0; S.cpu=0; S.rounds=0; S.exited=false; S.isrHot=false;
+  $('writeDot').style.display='none'; $('readDot').style.display='none';
+}
+function reset(){
+  stopRun(); S.busy=false; S.ab=false; S.gen++;
+  S.vol=false; S.opt=3;
+  $('opt').value='3';
+  resetRun();
+  S.quizOn=false; $('quizBox').style.display='none'; $('bQuiz').textContent='先猜后播';
+  renderAll();
+  setStatus('<b>已复位。</b> 当前为「不加 volatile + 优化等级 3」——先触发中断，再让主循环走几轮，看它是否卡死；然后加上 volatile 重来一次。','');
+}
+
+/* ---------- 动画 ---------- */
+function moveAlong(pathId,dotId,dur,done){
+  var p=$(pathId), len=p.getTotalLength(), t0=performance.now(), dot=$(dotId), my=++S.gen;
+  dot.style.display='';
+  function frame(now){
+    if(my!==S.gen){ dot.style.display='none'; return; }
+    var t=Math.min(1,(now-t0)/dur), e=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+    var pt=p.getPointAtLength(len*e);
+    dot.setAttribute('transform','translate('+pt.x.toFixed(1)+','+pt.y.toFixed(1)+')');
+    if(t<1) requestAnimationFrame(frame); else { dot.style.display='none'; if(done) done(); }
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 运行逻辑 ---------- */
+function oneRound(cb){
+  if(S.exited){ if(cb) cb(); return; }
+  S.rounds++;
+  if(freshRead()) S.cpu=S.ram;          // 每轮真实读内存
+  /* else: 复用循环前那一次的值（初值 0），本轮不再访问内存 */
+  if(S.cpu===1){ S.exited=true; hlCode(TAGS.led); }
+  else hlCode(TAGS.wait);
+  renderAll();
+  if(cb) cb();
+}
+function triggerIRQ(){
+  if(S.busy||S.running) return;
+  if(S.exited){ setStatus('<b>循环已退出。</b> 请先「复位」再重新演示。','ok'); return; }
+  if(S.fired){
+    setStatus('<b>中断已经触发过了。</b> 0x30 现为 1；点「主循环走一轮」观察它能否读到新值。',''); return;
+  }
+  S.busy=true; setButtons(true); S.isrHot=true; hlCode(TAGS.isr); renderAll();
+  setStatus('<b>中断响应。</b> 硬件经矢量 000BH 跳到 ISR，正在执行 <span class="mono">flag = 1</span> …','');
+  moveAlong('p_write','writeDot',560,function(){
+    S.fired=true; S.ram=1; S.isrHot=false; renderAll();
+    setStatus('<b>ISR 已把 0x30 写成 1。</b> 现在轮到主循环：'+
+      (freshRead()?'读内存通道畅通，下一轮就能看到新值。':'⚠ 读内存通道已被编译器剪断，CPU 仍拿着循环前读到的 0。'),
+      freshRead()?'ok':'err');
+    S.busy=false; setButtons(false);
+  });
+}
+function stepRound(){
+  if(S.busy||S.running) return;
+  if(S.exited){ setStatus('<b>循环已退出。</b> P1 已翻转。点「复位」重新演示。','ok'); return; }
+  var fr=freshRead(), before=S.cpu;
+  oneRound(function(){
+    if(S.exited){
+      setStatus('<b>退出循环！</b> 本次判定读到 <span class="mono">flag = 1</span>，执行 <span class="mono">P1 ^= 0x01</span>，LED 翻转。'+
+        (fr&&!S.vol?' 注意：这是低优化等级下的侥幸，源码仍应加 volatile。':''),'ok');
+    } else {
+      setStatus('<b>第 '+S.rounds+' 轮判定：CPU 持有 '+S.cpu+'，内存 0x30 = '+S.ram+'。</b> '+
+        (fr?'通道畅通，本轮重新读了内存；只是中断还没来。'
+           :'⚠ 不再访问内存，直接复用循环前的 0 —— 与中断写没写 1 完全无关，这就是死循环。'),
+        fr?'':'err');
+    }
+  });
+}
+function stopRun(){
+  S.running=false; S.gen++; cancelAnimationFrame(S.raf); clearTimeout(S.raf);
+  S.busy=false; S.ab=false; setButtons(false);
+  $('bRun').textContent='连续运行'; $('bRun').classList.remove('primary');
+  $('writeDot').style.display='none'; $('readDot').style.display='none';
+}
+function runLoop(){
+  if(!S.running) return;
+  oneRound();
+  if(S.exited){
+    stopRun();
+    setStatus('<b>退出循环，运行结束。</b> 共判定 '+S.rounds+' 轮，P1 已翻转。','ok');
+    return;
+  }
+  if(S.rounds>=12){
+    stopRun();
+    setStatus('<b>已连续判定 '+S.rounds+' 轮仍未退出。</b> '+
+      (danger()?'内存 0x30 = '+S.ram+'，CPU 却始终持有 0 —— 可判定为死循环。':'中断尚未触发，先点「触发 T0 中断」。'),
+      danger()?'err':'warn');
+    return;
+  }
+  S.raf=setTimeout(function(){ requestAnimationFrame(runLoop); },420);
+}
+function toggleRun(){
+  if(S.running){ stopRun(); setStatus('<b>已暂停。</b> 已判定 '+S.rounds+' 轮。',''); return; }
+  if(S.exited){ setStatus('<b>循环已退出。</b> 请先复位。','ok'); return; }
+  S.running=true; setButtons(true);
+  $('bRun').disabled=false; $('bRun').textContent='暂停'; $('bRun').classList.add('primary');
+  setStatus('<b>连续运行中。</b> 每轮判定一次；'+
+    (danger()?'读内存通道已被剪断，观察轮数增长而 CPU 值不变。':'每轮都会重新读 0x30。'),'');
+  runLoop();
+}
+
+/* A/B 对照：先演危险的，再自动复位演安全的 */
+function abDemo(){
+  if(S.busy||S.running) return;
+  stopRun(); S.gen++; S.ab=true;
+  var Q=[];
+  Q.push(function(next){                       // A：危险
+    S.vol=false; S.opt=3; $('opt').value='3'; resetRun(); renderAll();
+    setStatus('<b>A 组 · 不加 volatile + 优化等级 3。</b> 触发中断，再走 4 轮主循环 …','err');
+    setTimeout(next,1100);
+  });
+  Q.push(function(next){ triggerIRQ(); setTimeout(next,900); });
+  Q.push(function(next){ stepRound(); setTimeout(next,520); });
+  Q.push(function(next){ stepRound(); setTimeout(next,520); });
+  Q.push(function(next){ stepRound(); setTimeout(next,520); });
+  Q.push(function(next){ stepRound(); setTimeout(next,1400); });
+  Q.push(function(next){                       // B：安全
+    S.vol=true; S.opt=3; $('opt').value='3'; resetRun(); renderAll();
+    setStatus('<b>B 组 · 加上 volatile，其余完全不变。</b> 再触发一次中断 …','ok');
+    setTimeout(next,1100);
+  });
+  Q.push(function(next){ triggerIRQ(); setTimeout(next,900); });
+  Q.push(function(next){ stepRound(); setTimeout(next,900); });
+  Q.push(function(next){
+    setStatus('<b>对照结论。</b> 两次中断都把 0x30 写成 1；差别只在「主循环每轮是否真的去读内存」。'+
+      'A 组卡在第 4 轮仍持有 0，B 组一轮即退出。','ok');
+    S.ab=false; setButtons(false);
+  });
+  var i=0;
+  (function go(){ if(i<Q.length&&S.ab) Q[i++](go); })();
+}
+
+/* ---------- 预测-验证 ---------- */
+function showQuiz(){
+  stopRun(); reset();
+  S.quizOn=true; S.qpick=-1;
+  $('quizBox').style.display='block'; $('bQuiz').textContent='退出预测';
+  var q=QUIZ[S.qidx%QUIZ.length];
+  $('qno').textContent=(S.qidx%QUIZ.length)+1;
+  $('qcode').textContent=q.code;
+  $('qtext').textContent=q.text;
+  $('qopts').innerHTML=q.opts.map(function(o,i){ return '<button class="qopt" data-i="'+i+'">'+o+'</button>'; }).join('');
+  Array.prototype.forEach.call(document.querySelectorAll('.qopt'),function(b){
+    b.onclick=function(){
+      S.qpick=parseInt(b.getAttribute('data-i'),10);
+      Array.prototype.forEach.call(document.querySelectorAll('.qopt'),function(x){x.classList.remove('on');});
+      b.classList.add('on');
+    };
+  });
+  $('qres').innerHTML='';
+  setStatus('<b>先猜后播。</b> 请让学生先选答案，再点「验证」看结论与对应演示。','');
+}
+function verify(){
+  var q=QUIZ[S.qidx%QUIZ.length], ok=(S.qpick===q.a);
+  $('qres').innerHTML=ok
+    ? '<span style="color:#2E8B8B">✓ 判断正确 —— 下方已切到对应配置</span>'
+    : '<span style="color:#C4342B">✗ 正确答案是「'+q.opts[q.a]+'」—— 下方已切到对应配置</span>';
+  q.demo(); S.qidx++;
+  setStatus('<b>'+q.why+'</b>','ok');
+  setTimeout(function(){ triggerIRQ(); },450);
+}
+
+/* ---------- 事件 ---------- */
+$('opt').oninput=syncFromUI;
+$('bIRQ').onclick=triggerIRQ;
+$('bStep').onclick=stepRound;
+$('bRun').onclick=toggleRun;
+$('bAB').onclick=abDemo;
+$('bReset').onclick=reset;
+$('bQuiz').onclick=function(){ S.quizOn?reset():showQuiz(); };
+$('bVerify').onclick=verify;
+
+buildModes(); renderAll();
+</script>
+</body>
+</html>
