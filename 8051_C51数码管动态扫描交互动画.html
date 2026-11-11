@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8051 · C51 数码管动态扫描：code 段码表与消隐 | 交互动画</title>
+<style>
+:root{
+  --bg:#EFE2C4; --panel:#F8EFDC; --panel2:#FBF6E9; --ink:#3A2E1F; --muted:#7A6A52;
+  --line:#C9B795; --blue:#1D5FA8; --deep:#002E63; --teal:#2E8B8B;
+  --purple:#7A4FA3; --red:#C4342B; --magenta:#B0105A; --amber:#C77B18;
+  --led:#D8452F; --off:#CDBB99;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);
+  font-family:"Microsoft YaHei UI","Microsoft YaHei","PingFang SC",sans-serif;}
+.wrap{width:min(96vw,1880px);margin:0 auto;
+  padding:clamp(10px,1vh,16px) clamp(14px,1.5vw,28px) clamp(8px,.9vh,14px);
+  min-height:100vh;display:flex;flex-direction:column;}
+header{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
+  border-bottom:2px solid var(--line);
+  padding-bottom:clamp(7px,.9vh,12px);margin-bottom:clamp(8px,1.1vh,14px)}
+header h1{font-size:clamp(20px,1.35vw,34px);margin:0;letter-spacing:.5px;color:var(--deep)}
+header .sub{font-size:clamp(12px,.78vw,19px);color:var(--muted)}
+header .tag{margin-left:auto;font-size:clamp(11px,.7vw,17px);color:var(--muted);border:1px solid var(--line);border-radius:14px;padding:4px 12px;background:var(--panel2)}
+.grid{display:grid;
+  grid-template-columns:clamp(300px,18vw,375px) minmax(0,1fr) clamp(310px,18.5vw,395px);
+  gap:clamp(12px,1.1vw,20px);align-items:start;align-content:center;flex:1 1 auto;}
+.col{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:clamp(10px,.8vw,15px) clamp(12px,.95vw,18px) clamp(10px,.9vw,16px);
+  min-height:clamp(460px,56vh,640px)}
+.col h2{font-size:clamp(14px,.82vw,20px);margin:0 0 6px;color:var(--deep);letter-spacing:.5px;display:flex;align-items:center;gap:8px}
+.col h2:before{content:"";width:4px;height:15px;background:var(--blue);border-radius:2px}
+.col h2.tight{margin-top:5px}
+.hint{font-size:clamp(11.5px,.67vw,16px);color:var(--muted);line-height:1.44;margin:0 0 6px}
+
+/* ---------- 左栏 ---------- */
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:5px}
+.modes.three{grid-template-columns:repeat(3,1fr)}
+.mbtn{cursor:pointer;border:1px solid var(--line);background:var(--panel2);border-radius:7px;
+  padding:6px 3px 5px;text-align:center;font-family:inherit;transition:.15s;color:var(--ink)}
+.mbtn b{display:block;font-family:Consolas,monospace;font-size:clamp(11px,.66vw,15px);color:var(--mc);white-space:nowrap}
+.mbtn span{display:block;font-size:clamp(10.5px,.6vw,14px);color:var(--muted);margin-top:2px}
+.mbtn:hover{border-color:var(--mc)}
+.mbtn.on{background:#fff;border-color:var(--mc);box-shadow:0 0 0 2px var(--mc) inset;font-weight:700}
+.prow{display:grid;grid-template-columns:clamp(72px,5vw,96px) 1fr auto;gap:6px;align-items:center;
+  font-size:clamp(11.5px,.67vw,16px);margin-bottom:5px}
+.prow label{color:var(--muted);white-space:nowrap}
+.prow input[type=range]{width:100%;height:16px;accent-color:var(--blue);cursor:pointer}
+.prow .pv{font-family:Consolas,monospace;font-weight:700;color:var(--deep);min-width:52px;text-align:right;white-space:nowrap}
+.codebox{background:#2E2A22;color:#F3E9D2;border-radius:9px;padding:9px 11px 12px;
+  font-family:Consolas,"Courier New",monospace;font-size:clamp(11.5px,.72vw,17px);line-height:1.38;
+  max-height:320px;overflow:auto;white-space:pre;tab-size:2}
+.cline{display:block;border-left:3px solid transparent;padding-left:5px;margin-left:-8px;transition:.2s}
+.cline.on{background:rgba(143,211,244,.16);border-left-color:#8FD3F4}
+.k{color:#8FD3F4}.t{color:#F0B27A}.v{color:#D6E9A8}.cm{color:#9B8F77}.lit{color:#F19BB6}.fn{color:#F6D98A}
+.codekw{color:#F0B27A;font-weight:700}
+.oprow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-top:8px}
+button.act{cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--ink);
+  border-radius:7px;padding:clamp(6px,.8vh,10px) 4px;font-size:clamp(11px,.65vw,15px);font-family:inherit;transition:.15s}
+button.act:hover{background:#fff;border-color:var(--blue);color:var(--deep)}
+button.act.primary{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700}
+button.act.primary:hover{background:var(--deep)}
+button.act.warn{color:#8E2A22;border-color:#E0B4AE}
+button.act:disabled{opacity:.42;cursor:not-allowed;transform:none}
+
+/* ---------- 中栏 ---------- */
+.stage-col{padding:12px 12px 10px}
+.stage-title{font-size:clamp(13px,.78vw,19px);color:var(--deep);font-weight:700;margin:0 0 5px 6px;display:flex;justify-content:space-between;gap:10px}
+.stage-title em{font-style:normal;font-size:clamp(11px,.65vw,15px);color:var(--muted);font-weight:400}
+svg#scene{width:100%;height:auto;display:block;background:var(--panel2);border:1px solid var(--line);border-radius:9px;fill:var(--ink)}
+svg text{font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif}
+.mono{font-family:Consolas,"Courier New",monospace}
+.zs{font-size:11.5px;fill:var(--muted)}
+.flow{fill:none;stroke:#B7A480;stroke-width:2.4;stroke-linejoin:round}
+.slotrow{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:7px}
+.slot{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:5px 4px;
+  font-size:clamp(10.5px,.62vw,14px);text-align:center;color:var(--muted);line-height:1.35}
+.slot b{display:block;font-family:Consolas,monospace;font-size:clamp(11px,.66vw,15px);color:var(--deep)}
+.slot.on{background:#DCE9F7;border-color:var(--blue);color:var(--deep);font-weight:700}
+.status{margin-top:7px;background:var(--panel2);border:1px solid var(--line);border-left:5px solid var(--blue);
+  border-radius:8px;padding:7px 12px;font-size:clamp(12px,.7vw,16px);line-height:1.5;min-height:50px;}
+.status b{color:var(--deep)}
+.status.err{border-left-color:var(--red);color:#8E2A22}
+.status.ok{border-left-color:var(--teal)}
+.status.warn{border-left-color:var(--amber)}
+.legend{display:flex;flex-wrap:wrap;gap:3px 18px;margin-top:6px;font-size:clamp(11px,.65vw,15px);color:var(--muted);line-height:1.55}
+.legend > span{display:block;flex:1 1 45%;min-width:0}
+.legend > span.wide{flex:1 1 100%}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin:0 5px 0 0;vertical-align:middle}
+.legend b{color:var(--ink);white-space:nowrap}
+
+/* ---------- 右栏 ---------- */
+.kv{display:grid;grid-template-columns:clamp(80px,5.2vw,100px) 1fr;gap:2px 8px;font-size:clamp(11.5px,.68vw,16px);margin:0 0 5px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;font-weight:600;word-break:break-all}
+.calc{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 9px;margin-bottom:5px}
+.calc .bigv{font-family:Consolas,monospace;font-size:clamp(16px,1vw,24px);font-weight:700;color:var(--deep);line-height:1.2}
+.calc .lb{font-size:clamp(11px,.65vw,15px);color:var(--muted)}
+.calc .fm{font-family:Consolas,monospace;font-size:clamp(10.8px,.63vw,14px);color:var(--muted);margin-top:2px;line-height:1.32}
+.calc .fm+.fm{margin-top:1px}
+.mtx{width:100%;border-collapse:collapse;font-size:clamp(11px,.64vw,15px);margin-top:4px}
+.mtx th,.mtx td{border-bottom:1px solid var(--line);padding:3px 4px;text-align:center}
+.mtx th{color:var(--muted);font-weight:600}
+.mtx td:first-child,.mtx th:first-child{text-align:left;white-space:nowrap}
+.mtx .cur{background:#E5EFFA;outline:2px solid var(--blue);outline-offset:-2px}
+.mtx .pick{color:var(--blue);font-weight:700}
+.note{font-size:clamp(11px,.64vw,15px);color:var(--muted);line-height:1.4;margin:4px 0 5px}
+details{margin-top:5px;border-top:1px dashed var(--line);padding-top:4px}
+summary{cursor:pointer;font-size:clamp(11.5px,.68vw,16px);font-weight:700;color:var(--deep);outline:none}
+details ol{margin:4px 0 0;padding-left:18px;font-size:clamp(11px,.64vw,15px);line-height:1.3;color:var(--ink)}
+details li{margin-bottom:0}
+.quiz{background:#FFF8E8;border:1px solid #E0C98F;border-radius:9px;padding:10px 11px;font-size:clamp(11.5px,.68vw,16px);line-height:1.55;margin-bottom:8px}
+.quiz .qcode{font-family:Consolas,monospace;font-size:clamp(11px,.64vw,15px);background:#2E2A22;color:#F3E9D2;padding:6px 8px;border-radius:6px;margin:6px 0;white-space:pre-wrap}
+.qopts{display:flex;flex-direction:column;gap:4px;margin:6px 0}
+.qopt{cursor:pointer;text-align:left;border:1px solid var(--line);background:var(--panel2);border-radius:6px;
+  padding:5px 8px;font-family:inherit;font-size:clamp(11px,.64vw,15px);color:var(--ink)}
+.qopt.on{background:#DCE9F7;border-color:var(--blue);font-weight:700}
+.qopt:hover{border-color:var(--blue)}
+.quiz .res{font-weight:700;margin-top:5px;font-size:clamp(11px,.64vw,15px)}
+footer{margin-top:8px;border-top:1px solid var(--line);padding-top:6px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;font-size:clamp(11px,.65vw,15px);color:var(--muted);flex:none}
+
+/* ================= 自适应：1920×1080 为设计锚点 ================= */
+@media (min-width:2100px){ .wrap{width:min(92vw,2500px)} }
+@media (max-width:1500px){
+  .grid{grid-template-columns:clamp(265px,20vw,320px) minmax(0,1fr) clamp(265px,21vw,330px)}
+  .legend > span{flex:1 1 100%}
+}
+@media (max-width:1400px){
+  .grid{grid-template-columns:1fr 1fr;align-content:start}
+  .stage-col{grid-column:1/-1;order:-1}
+  .grid > .col:last-child{grid-column:auto;min-height:0}
+  .grid > .col:last-child .kv{grid-template-columns:110px 1fr}
+  .legend > span{flex:1 1 45%}
+  .col{min-height:0}
+  .codebox{max-height:230px}
+}
+@media (max-width:820px){
+  .wrap{width:94vw;min-height:0}
+  .grid{grid-template-columns:1fr;align-content:start}
+  .grid > .col:last-child{grid-column:auto}
+  .stage-col{order:-1}
+  header .tag{display:none} header .sub{display:none}
+  .legend > span{flex:1 1 100%}
+  footer span:last-child{display:none}
+}
+@media (max-width:560px){
+  .modes.three{grid-template-columns:1fr 1fr 1fr}
+  .oprow{grid-template-columns:1fr 1fr}
+  .codebox{max-height:200px}
+}
+@media (max-height:820px){
+  .wrap{min-height:0}
+  .grid{align-content:start}
+  .col{min-height:0}
+  .codebox{max-height:190px}
+  footer{margin-top:6px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>C51 · 数码管动态扫描：4 位为什么能「同时」亮</h1>
+    <span class="sub">8051 单片机原理与应用 · 交互动画 05</span>
+    <span class="tag">Keil C51 ｜ code 段码表 ｜ 消隐与串位 ｜ 单文件离线可用</span>
+  </header>
+
+  <main class="grid">
+    <!-- ================= 左栏：配置与代码 ================= -->
+    <section class="col">
+      <h2>① 管型与显示内容</h2>
+      <div class="modes" id="tubeModes">
+        <button class="mbtn on" data-g="tube" data-v="1" style="--mc:#1D5FA8"><b>共阴 CC</b><span>段码 1 点亮</span></button>
+        <button class="mbtn" data-g="tube" data-v="0" style="--mc:#C77B18"><b>共阳 CA</b><span>段码 0 点亮</span></button>
+      </div>
+      <div class="modes three" id="textModes">
+        <button class="mbtn on" data-g="text" data-v="0" style="--mc:#2E8B8B"><b>1234</b></button>
+        <button class="mbtn" data-g="text" data-v="1" style="--mc:#2E8B8B"><b>8051</b></button>
+        <button class="mbtn" data-g="text" data-v="2" style="--mc:#2E8B8B"><b>2026</b></button>
+      </div>
+      <p class="hint" id="tubeHint"></p>
+
+      <h2 class="tight">② 段码表放哪 · 切换顺序</h2>
+      <div class="modes" id="codeModes">
+        <button class="mbtn on" data-g="code" data-v="1" style="--mc:#2E8B8B"><b>加 code</b><span>程序空间 · 只读</span></button>
+        <button class="mbtn" data-g="code" data-v="0" style="--mc:#C4342B"><b>不加 code</b><span>占片内 RAM</span></button>
+      </div>
+      <div class="modes" id="blankModes">
+        <button class="mbtn on" data-g="blank" data-v="1" style="--mc:#2E8B8B"><b>先消隐 ✓</b><span>P2 = 0 再换</span></button>
+        <button class="mbtn" data-g="blank" data-v="0" style="--mc:#C4342B"><b>不消隐 ✕</b><span>直接换段码</span></button>
+      </div>
+      <p class="hint" id="blankHint"></p>
+
+      <h2 class="tight">③ 每位保持时间</h2>
+      <div class="prow"><label>延时 t</label>
+        <input type="range" id="t" min="1" max="20" step="1" value="2"><span class="pv" id="pvT">2 ms</span></div>
+      <p class="hint" id="tHint"></p>
+
+      <h2 class="tight">④ C51 源码（逐句执行）</h2>
+      <div class="codebox" id="codebox"></div>
+
+      <h2 class="tight">⑤ 操作</h2>
+      <div class="oprow">
+        <button class="act primary" id="bStep">单步 · 下一句</button>
+        <button class="act" id="bSlow">慢放一轮</button>
+        <button class="act" id="bRun">连续扫描</button>
+        <button class="act" id="bAB">A / B 对照</button>
+        <button class="act" id="bQuiz">先猜后播</button>
+        <button class="act warn" id="bReset">复 位</button>
+      </div>
+    </section>
+
+    <!-- ================= 中栏：总线 + 硬件瞬间 + 人眼合成 ================= -->
+    <section class="col stage-col">
+      <div class="stage-title">
+        <span>段码表 → P0 段线 → 位选 P2 → 人眼合成</span>
+        <em>教学慢放 · 真实切位只有微秒级</em>
+      </div>
+      <svg id="scene" viewBox="0 0 900 500" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#B7A480"/></marker>
+          <marker id="arwB" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#1D5FA8"/></marker>
+          <filter id="glow"><feGaussianBlur stdDeviation="2.6" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+
+        <!-- ===== ① 总线状态 ===== -->
+        <text x="24" y="22" font-size="12" font-weight="700" fill="#7A6A52">① 两条端口总线 · 段线 4 位共用，位选一次只开 1 位</text>
+        <g>
+          <rect x="24" y="34" width="410" height="78" rx="9" fill="#DCE9F7" stroke="#1D5FA8" stroke-width="2"/>
+          <text x="38" y="54" font-size="12" font-weight="700" fill="#1D5FA8">P0 · 段码总线 a~g+dp（P0.7 = dp）</text>
+          <g id="p0bits"></g>
+          <text x="418" y="94" text-anchor="end" class="mono" font-size="17" font-weight="700" fill="#002E63" id="sP0Hex">0x00</text>
+        </g>
+        <g>
+          <rect x="466" y="34" width="410" height="78" rx="9" fill="#E3F0E8" stroke="#2E8B8B" stroke-width="2"/>
+          <text x="480" y="54" font-size="12" font-weight="700" fill="#1E6157">P2 · 位选总线（本页约定：写 1 选中）</text>
+          <g id="p2bits"></g>
+          <text x="860" y="94" text-anchor="end" class="mono" font-size="17" font-weight="700" fill="#002E63" id="sP2Hex">0x00</text>
+        </g>
+        <path class="flow" d="M229 112 L229 144" marker-end="url(#arwB)"/>
+        <path class="flow" d="M671 112 L671 144" marker-end="url(#arw)"/>
+        <text x="238" y="134" class="zs" font-size="11">8 根段线并联到全部 4 位</text>
+        <text x="680" y="134" class="zs" font-size="11">4 根位选线各管 1 位</text>
+
+        <!-- ===== ② 硬件瞬间 ===== -->
+        <text x="24" y="166" font-size="12" font-weight="700" fill="#7A6A52">② 硬件瞬间 · 这一刻真正在发光的只有被选中的那一位</text>
+        <text x="470" y="166" class="zs" font-size="11" id="sSlowNote">第 1 位 · 字形 1 · 下一句 ① 消隐</text>
+        <g id="hwDigits" transform="translate(56,178)"></g>
+
+        <!-- ===== ③ 人眼合成 ===== -->
+        <text x="24" y="378" font-size="12" font-weight="700" fill="#7A6A52">③ 人眼合成 · 扫得够快时，4 位看起来是同时亮的</text>
+        <g id="eyeDigits" transform="translate(200,388)"></g>
+        <g>
+          <rect x="676" y="388" width="200" height="94" rx="9" fill="#F5EEDD" stroke="#C9B795" stroke-width="1.6" id="eyeBox"/>
+          <text x="690" y="408" class="zs" font-size="11.5">视觉暂留判定</text>
+          <text x="690" y="432" font-size="15" font-weight="700" fill="#002E63" id="sEye1">4 位同时亮</text>
+          <text x="690" y="452" class="zs" font-size="11" id="sEye2">125 Hz · 无闪烁</text>
+          <text x="690" y="470" class="zs" font-size="11" id="sEye3">每位占空 25%</text>
+        </g>
+        <text x="24" y="493" class="zs" font-size="11" id="sFoot">硬件约定：段线 P0.0~P0.6 接 a~g、P0.7 接 dp；位选经反相驱动，P2 第 i 位置 1 即选中第 i 位。</text>
+      </svg>
+
+      <div class="slotrow" id="slots"></div>
+      <div class="status" id="status"><b>准备就绪。</b> 当前是「加 code + 先消隐 + 2 ms/位」的正确写法。先单步走一轮看清每句 C 对应哪次总线动作，再关掉消隐重走一轮，比较人眼合成图里的差别。</div>
+      <div class="legend">
+        <span><i style="background:#D8452F"></i><b>红色亮段</b> = 该位正被选中、段码真正点亮；浅米灰段 = 熄灭</span>
+        <span><i style="background:#B0105A"></i><b>品红字形</b> = 串位鬼影：位选还停在上一位，段码却已换成下一位</span>
+        <span class="wide"><i style="background:#1D5FA8"></i>类比：舞台只有<b>一盏追光灯</b>，快速轮流照 4 位演员，扫得够快观众以为 4 人同亮；换目标时若不先把灯灭一下，灯光路过的一瞬会照到旁边的人。边界：真实成因是 <b>LED 余辉 + 人眼视觉暂留</b>，且每位只分到 1/4 的发光时间，类比不解释占空比与亮度。</span>
+      </div>
+    </section>
+
+    <!-- ================= 右栏：计算、段码表、边界 ================= -->
+    <section class="col">
+      <div id="quizBox" class="quiz" style="display:none">
+        <b>先猜后播 · 第 <span id="qno">1</span> 题</b>
+        <div class="qcode" id="qcode"></div>
+        <div id="qtext"></div>
+        <div class="qopts" id="qopts"></div>
+        <button class="act primary" id="bVerify" style="width:100%;margin-top:4px">验 证</button>
+        <div class="res" id="qres"></div>
+      </div>
+
+      <h2>当前配置 · 扫描时序</h2>
+      <div class="calc" id="timeCard">
+        <div class="lb">4 位 × <span id="vT">2</span> ms/位</div>
+        <div class="bigv" id="vF">125.0 Hz</div>
+        <div class="fm" id="vFormula">一轮 4 × 2 = 8 ms　→　f = 1000 / 8 = 125 Hz</div>
+        <div class="fm" id="vDuty">每位占空比 1/4 = 25%　·　提高刷新率不改变占空比</div>
+        <div class="fm" id="vVerdict" style="color:#1E6157;font-weight:700">≥ 50 Hz：视觉暂留成立，稳定不闪</div>
+      </div>
+
+      <h2 class="tight">段码表落在哪个空间</h2>
+      <div class="calc" id="spaceCard">
+        <div class="lb" id="vSpaceLb">seg_code[10] 声明带 code</div>
+        <div class="bigv" id="vSpace" style="font-size:clamp(14px,.85vw,20px)">程序空间 · 运行时只读</div>
+        <div class="fm" id="vSpaceWhy">查表走程序空间只读取表通道；10 B 常量不占片内 RAM，启动时也不必复制。</div>
+      </div>
+
+      <h2 class="tight">0~9 段码对照（a~g = P0.0~P0.6）</h2>
+      <table class="mtx">
+        <thead><tr><th>数字</th><th id="hCC">共阴</th><th id="hCA">共阳</th><th>数字</th><th>共阴</th><th>共阳</th></tr></thead>
+        <tbody id="segBody"></tbody>
+      </table>
+      <p class="note" id="segNote"></p>
+
+      <dl class="kv" id="kv"></dl>
+
+      <details open>
+        <summary>比喻的边界 · 六个易错点</summary>
+        <ol>
+          <li><b>不是 4 位同时点亮。</b>任一瞬间只有 1 位被选中，每位占空比固定 1/4；靠 LED 余辉与人眼视觉暂留把分时显示「积分」成同时显示，长延时就能看到逐位跳。</li>
+          <li><b>消隐不是为了省电。</b>它是避免「段码先变、位选后变」的一瞬串位。这一瞬只有几条 C 语句的极短时间，但每秒重复上百次，人眼累积后就是稳定的错误笔画。</li>
+          <li><b>提高刷新率不会更亮。</b>占空比始终 1/4，变的只是闪烁感；亮度靠段电流与限流电阻，峰值电流不得超过 I/O 与 LED 额定值，位选驱动还要能扛 8 段总电流。</li>
+          <li><b>code 不是「存到芯片外」。</b>它把常量放进程序空间（Flash / ROM），运行时只读；不加 code 才落片内 RAM，10 B 表还要启动时复制初值，对 128 / 256 B 片内 RAM 是浪费。</li>
+          <li><b>段码不是通用常数。</b>共阴 0 是 <span class="mono">0x3F</span>，共阳按位取反为 <span class="mono">0xC0</span>；段线顺序、反相驱动、是否带 dp 都会改表，必须对着原理图推，别背表。</li>
+          <li><b>软件延时占着 CPU。</b>工程上用 T0 定时中断刷新；显示缓冲被 ISR 与主程序共享时要 <span class="mono">volatile</span>，多字节量还要考虑一致性，<span class="mono">delay_ms()</span> 被中断打乱会造成亮度不匀。</li>
+        </ol>
+      </details>
+
+      <details>
+        <summary>段码表怎么推 · 极性与消隐电平</summary>
+        <ol>
+          <li>按 <span class="mono">a,b,c,d,e,f,g</span> 对应 <span class="mono">P0.0~P0.6</span> 写出每个数字该亮的段，得到一个字节；例如 0 亮 abcdef、不亮 g、dp → <span class="mono">0x3F</span>。</li>
+          <li>共阳极段线低电平点亮，把共阴段码<b>按位取反</b>即可：<span class="mono">0x3F → 0xC0</span>，<span class="mono">0x06 → 0xF9</span>。字形相同，只是端口电平相反。</li>
+          <li>消隐有两种做法：本页用「<b>关位选</b>」<span class="mono">P2 = 0x00</span>，与管型无关；也可送「<b>段全灭码</b>」，共阴 <span class="mono">P0 = 0x00</span>、共阳 <span class="mono">P0 = 0xFF</span>。两种别混用，尤其别把共阴的 0x00 照搬到共阳，那反而是全亮。</li>
+          <li>本页为突出段码与消隐，约定<b>位选经反相驱动、写 1 选中</b>。实际板卡共阳极位选常为低有效，需按原理图改 <span class="mono">P2</span> 表达式，不要照抄。</li>
+        </ol>
+      </details>
+
+      <details>
+        <summary>这张图对应哪些考点</summary>
+        <ol>
+          <li>由位数与每位延时算一轮周期、刷新率与占空比，并判断是否闪烁（经验判据 ≥ 50 Hz）。</li>
+          <li>解释「鬼影／串位／拖影」的成因，写出正确的切换顺序，指出少哪一行会出问题。</li>
+          <li><span class="mono">code</span> 关键字与 8051 程序空间 / 数据空间分开的哈佛结构，说明为何常量表要放程序空间。</li>
+          <li>共阴 / 共阳段码推导、按位取反，以及段线接法变化对表的影响。</li>
+          <li>软件延时扫描与定时器中断刷新的取舍；共享显示缓冲的正确声明。</li>
+          <li>图中「教学慢放」把每条语句放大成可观察的一步；真实切换只有微秒量级，保持时间才是 <span class="mono">t</span> ms。</li>
+        </ol>
+      </details>
+    </section>
+  </main>
+
+  <footer>
+    <span>8051 单片机原理与应用 · C51 数码管动态扫描交互演示 · 单 HTML 文件，无外部依赖，可离线投影或发给学生</span>
+    <span>视觉规范：米黄 #EFE2C4 · 深蓝 #002E63</span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* ---------- 常量 ---------- */
+var SEG=[0x3F,0x06,0x5B,0x4F,0x66,0x6D,0x7D,0x07,0x7F,0x6F];   // 共阴 a~g
+var SEGP=[
+  "18,8 82,8 76,16 24,16",       // a
+  "86,14 86,62 78,68 78,22",     // b
+  "86,78 86,126 78,120 78,84",   // c
+  "18,132 82,132 76,124 24,124", // d
+  "14,78 14,126 22,120 22,84",   // e
+  "14,14 14,62 22,68 22,22",     // f
+  "18,70 82,70 76,62 24,62"      // g
+];
+var TEXTS=[{n:'1234',b:[1,2,3,4]},{n:'8051',b:[8,0,5,1]},{n:'2026',b:[2,0,2,6]}];
+var LED='#D8452F', OFF='#CDBB99', GH='#B0105A';
+var QUIZ=[
+  {code:'4 位动态扫描\ndelay_ms(2);   // 每位保持 2 ms',
+   text:'刷新率是多少？会看到闪烁吗？',
+   opts:['8 Hz，明显逐位跳','125 Hz，稳定不闪','500 Hz，且比 2 ms 时更亮'], a:1,
+   why:'一轮 = 4 × 2 = 8 ms，f = 1000/8 = 125 Hz ≥ 50 Hz，视觉暂留成立。注意占空比仍固定 25%，刷新更快不会更亮。',
+   demo:function(){ S.t=2; $('t').value='2'; syncModes(); resetScan(); renderAll(); }},
+  {code:'/* 删掉这一行 */\n// P2 = 0x00;\nP0 = seg_code[buf[i]];\nP2 = 1 << i;',
+   text:'去掉「先关所有位」这一句，屏幕会怎样？',
+   opts:['整体变暗一半','相邻位出现淡淡的错误笔画','完全不显示'], a:1,
+   why:'执行 P0 = seg_code[buf[i]] 时 P2 仍选中上一位，上一位会短暂显示下一位的字形；每秒重复上百次，人眼积分后就是串位鬼影。',
+   demo:function(){ S.blank=false; syncModes(); resetScan(); renderAll(); }},
+  {code:'共阳极数码管 · 段线直接接 P0\nunsigned char code seg_code[10];',
+   text:'段码表和「段全灭」电平该怎么改？',
+   opts:['段码不变，全灭送 0xFF','段码按位取反，全灭送 0xFF','段码按位取反，全灭送 0x00'], a:1,
+   why:'共阳低电平点亮，段码是共阴按位取反（0x3F→0xC0）；段线全灭要送 0xFF。若沿用共阴的 0x00 反而是八段全亮。',
+   demo:function(){ S.cath=false; syncModes(); resetScan(); renderAll(); }}
+];
+
+var S={cath:true, useCode:true, blank:true, t:2, textIdx:0,
+  i:0, ph:0, p0:0, p2:0, ghosts:[-1,-1,-1,-1], flashGhost:-1, flashDigit:-1,
+  running:false, busy:false, ab:false, gen:0, timer:0, hl:'',
+  quizOn:false, qidx:0, qpick:-1};
+var $=function(id){ return document.getElementById(id); };
+function buf(){ return TEXTS[S.textIdx].b; }
+function hx(v){ var s=v.toString(16).toUpperCase(); return '0x'+(s.length<2?'0':'')+s; }
+function segHex(d){ return S.cath ? SEG[d] : ((~SEG[d])&0xFF); }
+function blankHex(){ return S.cath ? 0x00 : 0xFF; }
+function phases(){ return S.blank ? ['blank','seg','bit','delay','next'] : ['seg','bit','delay','next']; }
+function phaseName(k){
+  return {blank:'① 消隐',seg:'② 送段码',bit:'③ 开位选',delay:'④ 保持',next:'⑤ 下一位'}[k];
+}
+function fHz(){ return 1000/(4*S.t); }
+
+/* ---------- 控件 ---------- */
+function syncModes(){
+  Array.prototype.forEach.call(document.querySelectorAll('.mbtn'),function(b){
+    var g=b.getAttribute('data-g'), v=b.getAttribute('data-v');
+    var on = g==='tube' ? (S.cath===(v==='1'))
+           : g==='text' ? (S.textIdx===parseInt(v,10))
+           : g==='code' ? (S.useCode===(v==='1'))
+           : (S.blank===(v==='1'));
+    b.classList.toggle('on',!!on);
+  });
+  $('pvT').textContent=S.t+' ms';
+}
+function setOpt(g,v){
+  if(S.busy||S.running) return;
+  stopRun(); S.gen++;
+  if(g==='tube') S.cath=(v==='1');
+  else if(g==='text') S.textIdx=parseInt(v,10);
+  else if(g==='code') S.useCode=(v==='1');
+  else S.blank=(v==='1');
+  syncModes(); resetScan(); renderAll();
+  var msg;
+  if(g==='tube') msg='<b>已切换到'+(S.cath?'共阴':'共阳')+'。</b> 字形不变，变的是 P0 端口电平：共阳段码为共阴按位取反；若用「段全灭」消隐，共阴送 0x00、共阳送 0xFF。';
+  else if(g==='text') msg='<b>显示内容 '+TEXTS[S.textIdx].n+'。</b> 段码随数字变化，位选仍按第 1→4 位依次扫描。';
+  else if(g==='code') msg=S.useCode
+      ? '<b>段码表带 code。</b> 10 B 常量放程序空间，运行时只读查表，不占片内 RAM，启动时无需复制初值。'
+      : '<b>段码表不带 code。</b> 它是已初始化的全局数组，落在片内 RAM 占 10 B，启动时由 C51 启动代码从程序空间复制初值。';
+  else msg=S.blank
+      ? '<b>正确顺序：先关所有位。</b> 换段码时没有任何一位被选中，因此不会出现串位。'
+      : '<b>危险顺序：不消隐。</b> 换段码时 P2 仍选中上一位，请单步到「② 送段码」看品红鬼影。';
+  setStatus(msg, (g==='blank'&&!S.blank)?'err':((g==='code'&&!S.useCode)?'warn':''));
+}
+function onT(){
+  if(S.busy||S.running) return;
+  S.t=parseInt($('t').value,10);
+  syncModes(); renderAll();
+  var f=fHz();
+  setStatus('<b>每位保持 '+S.t+' ms。</b> 一轮 '+4*S.t+' ms → 刷新 '+f.toFixed(1)+' Hz；'+
+    (f>=50?'≥ 50 Hz，视觉暂留成立，4 位看起来稳定同亮。':'< 50 Hz，会看到逐位跳动甚至明显闪烁。')+
+    ' 注意占空比始终 25%，更快不会更亮。', f>=50?'':'warn');
+}
+
+/* ---------- C51 代码 ---------- */
+function codeLines(){
+  var L=[], add=function(x,tag){ L.push({t:x,tag:tag||''}); };
+  var b=buf();
+  var cc=[], ca=[];
+  for(var k=0;k<10;k++){ cc.push(hx(SEG[k])); ca.push(hx((~SEG[k])&0xFF)); }
+  var arr=S.cath?cc:ca;
+  add('<span class="cm">/* 4 位动态扫描 · 段线 P0 / 位选 P2 */</span>');
+  add('<span class="k">unsigned char</span> '+(S.useCode?'<span class="codekw">code</span> ':'')+'<span class="v">seg_code</span>[<span class="lit">10</span>] = {','tbl');
+  add('  '+arr.slice(0,5).join(',')+',','tbl');
+  add('  '+arr.slice(5).join(',')+' };','tbl');
+  add('<span class="k">unsigned char</span> <span class="v">buf</span>[<span class="lit">4</span>] = {'+b.join(',')+'};');
+  add('<span class="k">void</span> <span class="fn">main</span>(<span class="k">void</span>){ <span class="k">unsigned char</span> <span class="v">i</span>=<span class="lit">0</span>;');
+  add('  <span class="k">while</span>(<span class="lit">1</span>){');
+  if(S.blank) add('    P2 = <span class="lit">0x00</span>;  <span class="cm">// ① 消隐：先关所有位</span>','blank');
+  else add('    <span class="cm">// ✕ 少了消隐这一句</span>','blank');
+  add('    P0 = <span class="v">seg_code</span>[<span class="v">buf</span>[<span class="v">i</span>]]; <span class="cm">// ② 送段码</span>','seg');
+  add('    P2 = <span class="lit">1</span> &lt;&lt; <span class="v">i</span>;      <span class="cm">// ③ 开位选</span>','bit');
+  add('    <span class="fn">delay_ms</span>(<span class="lit">'+S.t+'</span>);       <span class="cm">// ④ 保持</span>','delay');
+  add('    <span class="v">i</span> = (<span class="v">i</span> + <span class="lit">1</span>) &amp; <span class="lit">0x03</span>; <span class="cm">// ⑤ 下一位</span>','next');
+  add('  }');
+  add('}');
+  return L;
+}
+function hlCode(tag){ S.hl=tag; renderCode(S.hl); }
+function renderCode(hl){
+  $('codebox').innerHTML=codeLines().map(function(x){
+    return '<span class="cline'+(hl&&x.tag===hl?' on':'')+'">'+x.t+'</span>';
+  }).join('');
+}
+
+/* ---------- SVG：数码管 ---------- */
+function segShapes(mask,color,opacity){
+  var s='';
+  for(var k=0;k<7;k++){
+    var on=(mask>>k)&1;
+    s+='<polygon points="'+SEGP[k]+'" fill="'+(on?color:OFF)+'" fill-opacity="'+(on?opacity:1)+
+        '" stroke="rgba(58,46,31,.16)" stroke-width=".7"/>';
+  }
+  s+='<circle cx="94" cy="126" r="6" fill="'+OFF+'"/>';
+  return s;
+}
+function oneDigit(x,scale,mask,color,opacity,frame,label,sub){
+  var g='<g transform="translate('+x+',0) scale('+scale+')">';
+  g+='<rect x="-10" y="-10" width="120" height="160" rx="9" fill="'+(frame==='on'?'#FFF6E2':'#F7F0E0')+
+     '" stroke="'+(frame==='on'?'#1D5FA8':(frame==='gh'?'#B0105A':'#C9B795'))+
+     '" stroke-width="'+(frame==='off'?1.2:2.4)+'"/>';
+  g+=segShapes(mask,color,opacity);
+  if(label) g+='<text x="50" y="166" text-anchor="middle" font-size="12" font-weight="700" fill="'+
+       (frame==='gh'?'#B0105A':'#002E63')+'">'+label+'</text>';
+  if(sub) g+='<text x="50" y="183" text-anchor="middle" font-size="10.5" fill="#7A6A52">'+sub+'</text>';
+  return g+'</g>';
+}
+function drawDigits(){
+  var b=buf(), hw='', eye='', f=fHz(), stable=f>=50;
+  for(var k=0;k<4;k++){
+    var sel=((S.p2>>k)&1)===1;
+    var isGh=(S.flashGhost===k)&&sel;
+    var shown=isGh?S.flashDigit:b[k];
+    var mask=sel?(SEG[shown]&0x7F):0;
+    var frame=isGh?'gh':(sel?'on':'off');
+    var color=isGh?GH:LED;
+    hw+=oneDigit(k*190,1,mask,color,1,frame,'第 '+(k+1)+' 位',
+                 sel?(isGh?'⚠ 串位：显示的是下一位':'P2.'+k+' = 1 · 选中'):'位选关闭');
+
+    /* 人眼合成：正常字形 + 未消隐时累积的串位残影 */
+    var em=SEG[b[k]]&0x7F;
+    var gm=(!S.blank&&S.ghosts[k]>=0)?(SEG[S.ghosts[k]]&0x7F):0;
+    var eg='<g transform="translate('+(k*128)+',0) scale(.62)" opacity="'+
+           (stable?1:(S.i===k?1:.28))+'">';
+    eg+='<rect x="-10" y="-10" width="120" height="160" rx="9" fill="#F7F0E0" stroke="#C9B795" stroke-width="1.4"/>';
+    eg+=segShapes(em,LED,1);
+    if(gm){
+      for(var q=0;q<7;q++){
+        if((gm>>q)&1) eg+='<polygon points="'+SEGP[q]+'" fill="'+GH+'" fill-opacity=".55"/>';
+      }
+    }
+    eg+='</g>';
+    eye+=eg;
+  }
+  $('hwDigits').innerHTML=hw;
+  $('eyeDigits').innerHTML=eye;
+}
+
+/* ---------- 主渲染 ---------- */
+function renderAll(){
+  syncModes();
+  var b=buf(), f=fHz(), stable=f>=50, P=phases();
+  /* 左栏提示 */
+  $('tubeHint').textContent=S.cath
+    ? '共阴：公共端接地，段线送 1 点亮；0 的段码是 0x3F。'
+    : '共阳：公共端接电源，段线送 0 点亮；段码是共阴按位取反，0 是 0xC0。';
+  $('blankHint').textContent=S.blank
+    ? '✓ 换段码之前先 P2 = 0x00 关掉全部位选，切换瞬间没有任何一位发光。'
+    : '✕ 位选仍停在上一位就改 P0，上一位会闪出下一位的字形 —— 串位鬼影。';
+  $('tHint').textContent='一轮 '+(4*S.t)+' ms → '+f.toFixed(1)+' Hz；'+
+    (stable?'≥ 50 Hz，稳定不闪。':'< 50 Hz，逐位跳动明显。')+' 占空比恒为 25%。';
+  renderCode(S.hl);
+
+  /* 端口位 */
+  var p0='',p2='';
+  for(var k=7;k>=0;k--){
+    var on=(S.p0>>k)&1, bx=38+(7-k)*41;
+    p0+='<rect x="'+bx+'" y="66" width="34" height="26" rx="4" fill="'+(on?'#1D5FA8':'#E6DCC6')+
+        '" stroke="#C9B795" stroke-width="1"/>';
+    p0+='<text x="'+(bx+17)+'" y="84" text-anchor="middle" class="mono" font-size="12" font-weight="700" fill="'+
+        (on?'#FFFFFF':'#7A6A52')+'">'+on+'</text>';
+    p0+='<text x="'+(bx+17)+'" y="105" text-anchor="middle" class="zs" font-size="9">P0.'+k+'</text>';
+  }
+  for(var j=3;j>=0;j--){
+    var o2=(S.p2>>j)&1, x2=480+(3-j)*84;
+    p2+='<rect x="'+x2+'" y="66" width="72" height="26" rx="4" fill="'+(o2?'#2E8B8B':'#E6DCC6')+
+        '" stroke="#C9B795" stroke-width="1"/>';
+    p2+='<text x="'+(x2+36)+'" y="84" text-anchor="middle" class="mono" font-size="12" font-weight="700" fill="'+
+        (o2?'#FFFFFF':'#7A6A52')+'">'+o2+'</text>';
+    p2+='<text x="'+(x2+36)+'" y="105" text-anchor="middle" class="zs" font-size="9">P2.'+j+'</text>';
+  }
+  $('p0bits').innerHTML=p0; $('p2bits').innerHTML=p2;
+  $('sP0Hex').textContent=hx(S.p0); $('sP2Hex').textContent=hx(S.p2);
+  drawDigits();
+
+  /* 人眼判定 */
+  var gAny=S.ghosts.some(function(x){return x>=0;});
+  $('sEye1').textContent=stable?(gAny?'同时亮 · 带串位':'4 位同时亮'):'只看到一位在跳';
+  $('sEye1').setAttribute('fill',gAny?'#B0105A':(stable?'#002E63':'#C77B18'));
+  $('sEye2').textContent=f.toFixed(1)+' Hz · '+(stable?'无闪烁':'明显闪烁');
+  $('sEye2').setAttribute('fill',stable?'#7A6A52':'#C77B18');
+  $('sEye3').textContent='每位占空 25% · '+(gAny?'⚠ 有鬼影':'画面干净');
+  $('sEye3').setAttribute('fill',gAny?'#B0105A':'#7A6A52');
+  $('eyeBox').setAttribute('stroke',gAny?'#B0105A':'#C9B795');
+  $('sFoot').textContent=gAny
+    ? '⚠ 人眼把每秒上百次的切换瞬间一起积分：品红笔画是上一位误显的下一位字形，不是亮度不够或段码写错。'
+    : '硬件约定：段线 P0.0~P0.6 接 a~g、P0.7 接 dp；位选经反相驱动，P2 第 i 位置 1 即选中第 i 位。';
+  $('sSlowNote').textContent='第 '+(S.i+1)+' 位 · 字形 '+b[S.i]+' · 下一句「'+phaseName(P[S.ph%P.length])+'」';
+
+  /* 时隙 */
+  var sl='';
+  for(var n=0;n<4;n++){
+    sl+='<div class="slot'+(n===S.i?' on':'')+'">'+
+        '<b>第 '+(n+1)+' 位 → '+b[n]+'</b>'+S.t+' ms · '+hx(segHex(b[n]))+'</div>';
+  }
+  $('slots').innerHTML=sl;
+
+  /* 右栏：时序 */
+  $('vT').textContent=S.t;
+  $('vF').textContent=f.toFixed(1)+' Hz';
+  $('vF').style.color=stable?'#002E63':'#C4342B';
+  $('vFormula').textContent='一轮 4 × '+S.t+' = '+(4*S.t)+' ms　→　f = 1000 / '+(4*S.t)+' = '+f.toFixed(1)+' Hz';
+  $('vDuty').textContent='每位占空比 1/4 = 25%　·　提高刷新率不改变占空比';
+  $('vVerdict').textContent=stable?'≥ 50 Hz：视觉暂留成立，稳定不闪':'< 50 Hz：逐位跳动，明显闪烁';
+  $('vVerdict').style.color=stable?'#1E6157':'#C4342B';
+
+  /* 右栏：存储 */
+  $('vSpaceLb').textContent='seg_code[10] 声明'+(S.useCode?'带 code':'不带 code');
+  $('vSpace').textContent=S.useCode?'程序空间 · 运行时只读':'片内 RAM · data 区';
+  $('vSpace').style.color=S.useCode?'#002E63':'#C4342B';
+  $('vSpaceWhy').textContent=S.useCode
+    ? '查表走程序空间只读取表通道；10 B 常量不占片内 RAM，启动时也不必复制。'
+    : '占片内 RAM 10 B；启动时由 C51 启动代码从程序空间复制初值，查表走片内直接寻址。';
+
+  /* 段码对照表 */
+  var rows='';
+  for(var q=0;q<5;q++){
+    var d1=q, d2=q+5;
+    var pick=function(d){ return b.indexOf(d)>=0; };
+    rows+='<tr>'+
+      '<td class="'+(pick(d1)?'cur':'')+'">'+d1+'</td>'+
+      '<td class="'+(S.cath?'pick':'')+'">'+hx(SEG[d1])+'</td>'+
+      '<td class="'+(S.cath?'':'pick')+'">'+hx((~SEG[d1])&0xFF)+'</td>'+
+      '<td class="'+(pick(d2)?'cur':'')+'">'+d2+'</td>'+
+      '<td class="'+(S.cath?'pick':'')+'">'+hx(SEG[d2])+'</td>'+
+      '<td class="'+(S.cath?'':'pick')+'">'+hx((~SEG[d2])&0xFF)+'</td></tr>';
+  }
+  $('segBody').innerHTML=rows;
+  $('hCC').style.color=S.cath?'#1D5FA8':'#7A6A52';
+  $('hCA').style.color=S.cath?'#7A6A52':'#C77B18';
+  $('segNote').innerHTML='蓝底为 <b>'+TEXTS[S.textIdx].n+'</b> 中的数字，加粗列是当前管型段码。共阳 = 共阴按位取反，'+
+    '字形相同、电平相反；段全灭消隐：共阴 <span class="mono">0x00</span>、共阳 <span class="mono">0xFF</span>。';
+
+  $('kv').innerHTML=
+    '<dt>管型 / 内容</dt><dd>'+(S.cath?'共阴':'共阳')+' · '+TEXTS[S.textIdx].n+' · '+
+      (S.blank?'<span style="color:#2E8B8B">消隐 ✓</span>':'<span style="color:#C4342B">缺消隐 ✕</span>')+'</dd>'+
+    '<dt>当前扫描位</dt><dd>第 '+(S.i+1)+' 位 · '+phaseName(P[S.ph%P.length])+'</dd>'+
+    '<dt>端口状态</dt><dd class="mono">P0 '+hx(S.p0)+' · P2 '+hx(S.p2)+'</dd>'+
+    '<dt>本帧段码</dt><dd class="mono">'+b.map(function(d){return hx(segHex(d));}).join(' ')+
+      ' · '+(S.useCode?'code':'无 code')+'</dd>';
+}
+
+/* ---------- 状态与按钮 ---------- */
+function setStatus(html,cls){ var s=$('status'); s.className='status'+(cls?' '+cls:''); s.innerHTML=html; }
+function setButtons(dis){
+  ['bStep','bSlow','bAB','bQuiz','t'].forEach(function(id){ $(id).disabled=dis; });
+  Array.prototype.forEach.call(document.querySelectorAll('.mbtn,.qopt'),function(b){ b.disabled=dis; });
+}
+function resetScan(){
+  S.i=0; S.ph=0; S.p0=0; S.p2=0; S.hl='';
+  S.ghosts=[-1,-1,-1,-1]; S.flashGhost=-1; S.flashDigit=-1;
+}
+function stopRun(){
+  S.running=false; S.busy=false; S.ab=false; S.gen++;
+  clearTimeout(S.timer);
+  setButtons(false);
+  $('bRun').textContent='连续扫描'; $('bRun').classList.remove('primary');
+}
+function reset(){
+  stopRun();
+  S.cath=true; S.useCode=true; S.blank=true; S.t=2; S.textIdx=0;
+  $('t').value='2';
+  resetScan();
+  S.quizOn=false; S.qpick=-1;
+  $('quizBox').style.display='none'; $('bQuiz').textContent='先猜后播';
+  renderAll();
+  setStatus('<b>已复位。</b> 当前是「共阴 + 加 code + 先消隐 + 2 ms/位」的正确写法。'+
+    '先单步走一轮看清每句 C 对应哪次总线动作，再关掉消隐重走一轮，比较人眼合成图里的差别。','');
+}
+
+/* ---------- 单步：一句 C = 一次总线动作 ---------- */
+function step(){
+  var P=phases(), key=P[S.ph], b=buf();
+  if(key==='blank'){
+    S.p2=0; S.flashGhost=-1;
+    hlCode('blank');
+    setStatus('<b>① 消隐。</b> <span class="mono">P2 = 0x00</span> 关掉全部位选；段线上仍是上一位的段码，'+
+      '但没有任何一位被选中，所以不会发光。这一步就是「先灭灯再换目标」。','ok');
+  } else if(key==='seg'){
+    S.p0=segHex(b[S.i]);
+    if(!S.blank && S.p2!==0){
+      S.flashGhost=(S.i+3)&3; S.flashDigit=b[S.i];
+      hlCode('seg');
+      setStatus('<b>② 送段码 —— 鬼影出现！</b> 位选还停在第 '+(((S.i+3)&3)+1)+' 位，'+
+        'P0 却已换成第 '+(S.i+1)+' 位的 '+hx(S.p0)+'，于是上一位短暂闪出「'+b[S.i]+'」这个错误字形（品红）。','err');
+    } else {
+      S.flashGhost=-1;
+      hlCode('seg');
+      setStatus('<b>② 送段码。</b> <span class="mono">P0 = seg_code[buf['+S.i+']] = '+hx(S.p0)+'</span>；'+
+        (S.blank?'此时位选已全部关闭，不会有任何一位误显。':'首轮位选为 0，暂无串位；下一轮起就会出问题。'),'ok');
+    }
+  } else if(key==='bit'){
+    S.p2=1<<S.i;
+    if(S.flashGhost>=0) S.ghosts[S.flashGhost]=S.flashDigit;
+    S.flashGhost=-1;
+    hlCode('bit');
+    setStatus('<b>③ 开位选。</b> <span class="mono">P2 = 1 &lt;&lt; '+S.i+' = '+hx(S.p2)+'</span>，'+
+      '只有第 '+(S.i+1)+' 位被选中并显示「'+b[S.i]+'」；其余三位此刻全是灭的。','');
+  } else if(key==='delay'){
+    hlCode('delay');
+    setStatus('<b>④ 保持 '+S.t+' ms。</b> 这一段时间内第 '+(S.i+1)+' 位独占段线；'+
+      '一轮共 '+(4*S.t)+' ms，刷新 '+fHz().toFixed(1)+' Hz，每位只分到 25% 的发光时间。','');
+  } else {
+    S.i=(S.i+1)&3;
+    hlCode('next');
+    setStatus('<b>⑤ 下一位。</b> <span class="mono">i = (i+1) & 0x03</span> → 轮到第 '+(S.i+1)+' 位。'+
+      '此刻 P0 还锁存着上一位的段码 '+hx(S.p0)+'，'+
+      (S.blank?'下一句先「① 消隐」关掉位选，随后才改段码，因此不会误显。'
+              :'⚠ P2 仍停在第 '+(((S.i+3)&3)+1)+' 位，下一句直接改 P0 时会再次串位。'),
+      S.blank?'':'warn');
+  }
+  S.ph=(S.ph+1)%P.length;
+  renderAll();
+}
+function stepOnce(){
+  if(S.busy||S.running) return;
+  step();
+}
+function playSteps(n,interval,done){
+  if(S.busy||S.running) return;
+  stopRun(); S.busy=true; setButtons(true);
+  var my=S.gen, k=0;
+  (function go(){
+    if(my!==S.gen){ S.busy=false; setButtons(false); return; }
+    if(k>=n){ S.busy=false; setButtons(false); if(done) done(); return; }
+    k++; step(); S.timer=setTimeout(go,interval);
+  })();
+}
+function slowRound(){
+  var n=phases().length*5;   /* 多走一位，让第 4 位的串位也在合成图里出现 */
+  playSteps(n,170,function(){
+    setStatus('<b>慢放一轮完成。</b> '+(S.blank
+      ? '每位切换前都先关了位选，人眼合成图干净无残影。'
+      : '⚠ 4 位都出现了品红串位笔画：切换瞬间上一位误显了下一位的字形。'),
+      S.blank?'ok':'err');
+  });
+}
+function toggleRun(){
+  if(S.running){ stopRun(); setStatus('<b>已暂停。</b> 当前停在第 '+(S.i+1)+' 位，点「复位」可回到起点。',''); return; }
+  S.running=true; setButtons(true);
+  $('bRun').disabled=false; $('bRun').textContent='暂停'; $('bRun').classList.add('primary');
+  var my=S.gen;
+  setStatus('<b>连续扫描中（教学慢放）。</b> 每句 C 放大成可观察的一步；注意任一瞬间只有一位亮。','');
+  (function go(){
+    if(!S.running||my!==S.gen) return;
+    step(); S.timer=setTimeout(go,130);
+  })();
+}
+
+/* ---------- A / B 对照 ---------- */
+function abDemo(){
+  if(S.busy||S.running) return;
+  stopRun(); S.ab=true;
+  var my=S.gen, list=[];
+  list.push([function(){
+    S.blank=false; syncModes(); resetScan(); renderAll();
+    setStatus('<b>A 组 · 不消隐。</b> 按「送段码 → 开位选」直接切换，慢放一轮 …','err');
+  },750]);
+  var nA=4*5;
+  for(var a=0;a<nA;a++) list.push([function(){ step(); },135]);
+  list.push([function(){
+    setStatus('<b>A 组结果：4 位都带品红串位笔画。</b> 现在只加回一行 P2 = 0x00，其余完全不变 …','err');
+  },1300]);
+  list.push([function(){
+    S.blank=true; syncModes(); resetScan(); renderAll();
+    setStatus('<b>B 组 · 先消隐。</b> 换段码之前先关掉全部位选，同样慢放一轮 …','ok');
+  },750]);
+  var nB=5*5;
+  for(var c=0;c<nB;c++) list.push([function(){ step(); },135]);
+  list.push([function(){
+    setStatus('<b>对照结论。</b> 两组段码、位选、延时完全一样，差别只有一行「先关所有位」。'+
+      '缺了它，切换瞬间位选与段码错配，每秒重复上百次就积成稳定的串位鬼影。','ok');
+    S.ab=false; setButtons(false);
+  },100]);
+  setButtons(true);
+  var i=0;
+  (function go(){
+    if(!S.ab||my!==S.gen) return;
+    if(i>=list.length){ S.ab=false; setButtons(false); return; }
+    var it=list[i++]; it[0](); S.timer=setTimeout(go,it[1]);
+  })();
+}
+
+/* ---------- 预测-验证 ---------- */
+function showQuiz(){
+  stopRun(); reset();
+  S.quizOn=true; S.qpick=-1;
+  $('quizBox').style.display='block'; $('bQuiz').textContent='退出预测';
+  var q=QUIZ[S.qidx%QUIZ.length];
+  $('qno').textContent=(S.qidx%QUIZ.length)+1;
+  $('qcode').textContent=q.code;
+  $('qtext').textContent=q.text;
+  $('qopts').innerHTML=q.opts.map(function(o,i){ return '<button class="qopt" data-i="'+i+'">'+o+'</button>'; }).join('');
+  Array.prototype.forEach.call(document.querySelectorAll('.qopt'),function(b){
+    b.onclick=function(){
+      S.qpick=parseInt(b.getAttribute('data-i'),10);
+      Array.prototype.forEach.call(document.querySelectorAll('.qopt'),function(x){x.classList.remove('on');});
+      b.classList.add('on');
+    };
+  });
+  $('qres').innerHTML='';
+  setStatus('<b>先猜后播。</b> 请让学生先选答案，再点「验证」看结论与对应演示。','');
+}
+function verify(){
+  var q=QUIZ[S.qidx%QUIZ.length], ok=(S.qpick===q.a);
+  $('qres').innerHTML=ok
+    ? '<span style="color:#2E8B8B">✓ 判断正确 —— 下方已切到对应配置并慢放一轮</span>'
+    : '<span style="color:#C4342B">✗ 正确答案是「'+q.opts[q.a]+'」—— 下方已切到对应配置并慢放一轮</span>';
+  q.demo(); S.qidx++;
+  setStatus('<b>'+q.why+'</b>','ok');
+  setTimeout(function(){ if(!S.running&&!S.busy) slowRound(); },600);
+}
+
+/* ---------- 事件 ---------- */
+Array.prototype.forEach.call(document.querySelectorAll('.mbtn'),function(b){
+  b.onclick=function(){ setOpt(b.getAttribute('data-g'),b.getAttribute('data-v')); };
+});
+$('t').oninput=onT;
+$('bStep').onclick=stepOnce;
+$('bSlow').onclick=slowRound;
+$('bRun').onclick=toggleRun;
+$('bAB').onclick=abDemo;
+$('bReset').onclick=reset;
+$('bQuiz').onclick=function(){ S.quizOn?reset():showQuiz(); };
+$('bVerify').onclick=verify;
+
+syncModes(); renderAll();
+</script>
+</body>
+</html>
