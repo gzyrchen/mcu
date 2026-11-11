@@ -9,7 +9,7 @@
   --bg:#EFE2C4; --panel:#F8EFDC; --panel2:#FBF6E9; --ink:#3A2E1F; --muted:#7A6A52;
   --line:#C9B795; --blue:#1D5FA8; --deep:#002E63; --teal:#2E8B8B;
   --purple:#7A4FA3; --red:#C4342B; --magenta:#B0105A; --amber:#C77B18;
-  --led:#D8452F; --off:#CDBB99;
+  --led:#0B6FE8; --off:#E9DFC9; --led-edge:#064B9E;
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -268,9 +268,9 @@ footer{margin-top:8px;border-top:1px solid var(--line);padding-top:6px;display:f
       <div class="slotrow" id="slots"></div>
       <div class="status" id="status"><b>准备就绪。</b> 当前是「加 code + 先消隐 + 2 ms/位」的正确写法。先单步走一轮看清每句 C 对应哪次总线动作，再关掉消隐重走一轮，比较人眼合成图里的差别。</div>
       <div class="legend">
-        <span><i style="background:#D8452F"></i><b>红色亮段</b> = 该位正被选中、段码真正点亮；浅米灰段 = 熄灭</span>
+        <span><i style="background:var(--led)"></i><b>蓝色亮段</b> = 该位正被选中、段码真正点亮；极浅米色段 = 熄灭</span>
         <span><i style="background:#B0105A"></i><b>品红字形</b> = 串位鬼影：位选还停在上一位，段码却已换成下一位</span>
-        <span class="wide"><i style="background:#1D5FA8"></i>类比：舞台只有<b>一盏追光灯</b>，快速轮流照 4 位演员，扫得够快观众以为 4 人同亮；换目标时若不先把灯灭一下，灯光路过的一瞬会照到旁边的人。边界：真实成因是 <b>LED 余辉 + 人眼视觉暂留</b>，且每位只分到 1/4 的发光时间，类比不解释占空比与亮度。</span>
+        <span class="wide"><i style="background:#8A7B63"></i>类比：舞台只有<b>一盏追光灯</b>，快速轮流照 4 位演员，扫得够快观众以为 4 人同亮；换目标时若不先把灯灭一下，灯光路过的一瞬会照到旁边的人。边界：真实成因是 <b>LED 余辉 + 人眼视觉暂留</b>，且每位只分到 1/4 的发光时间，类比不解释占空比与亮度。</span>
       </div>
     </section>
 
@@ -366,7 +366,7 @@ var SEGP=[
   "18,70 82,70 76,62 24,62"      // g
 ];
 var TEXTS=[{n:'1234',b:[1,2,3,4]},{n:'8051',b:[8,0,5,1]},{n:'2026',b:[2,0,2,6]}];
-var LED='#D8452F', OFF='#CDBB99', GH='#B0105A';
+var LED='#0B6FE8', OFF='#E9DFC9', LED_EDGE='#064B9E', GH='#B0105A'; /* 与 :root 的 --led/--off/--magenta 同步 */
 var QUIZ=[
   {code:'4 位动态扫描\ndelay_ms(2);   // 每位保持 2 ms',
    text:'刷新率是多少？会看到闪烁吗？',
@@ -478,9 +478,9 @@ function segShapes(mask,color,opacity){
   for(var k=0;k<7;k++){
     var on=(mask>>k)&1;
     s+='<polygon points="'+SEGP[k]+'" fill="'+(on?color:OFF)+'" fill-opacity="'+(on?opacity:1)+
-        '" stroke="rgba(58,46,31,.16)" stroke-width=".7"/>';
+        '" stroke="'+(on?LED_EDGE:'rgba(58,46,31,.10)')+'" stroke-width="'+(on?'.95':'.6')+'"/>';
   }
-  s+='<circle cx="94" cy="126" r="6" fill="'+OFF+'"/>';
+  s+='<circle cx="94" cy="126" r="6" fill="'+OFF+'" stroke="rgba(58,46,31,.10)" stroke-width=".6"/>';
   return s;
 }
 function oneDigit(x,scale,mask,color,opacity,frame,label,sub){
